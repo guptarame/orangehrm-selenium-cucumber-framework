@@ -2,6 +2,7 @@ package com.orangehrm.pages;
 
 import com.orangehrm.config.ConfigReader;
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -64,7 +65,9 @@ public abstract class BasePage {
             new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds))
                     .until(ExpectedConditions.visibilityOfElementLocated(locator));
             return true;
-        } catch (Exception e) {
+        } catch (TimeoutException e) {
+            // Element genuinely did not become visible within the window -
+            // a first-class "not displayed" outcome, not an error to hide.
             return false;
         }
     }
