@@ -47,9 +47,9 @@ mvn clean test -Dheadless=true
 
 ## Verification Rules
 
-- Validate `TestConfig` defaults, system-property overrides, environment
+- Validate `ConfigReader` defaults, system-property overrides, environment
   variables, and safe timeout handling.
-- Confirm `BaseTest` creates and tears down isolated drivers without leaks.
+- Confirm `TestRunner.java` creates and tears down isolated drivers without leaks.
 - Confirm `BasePage` and `LoginPage` use bounded explicit waits and preserve
   fluent interactions.
 - Confirm login outcome synchronization, shared Remember Me profile handling,

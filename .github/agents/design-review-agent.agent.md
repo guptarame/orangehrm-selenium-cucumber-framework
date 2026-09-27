@@ -13,8 +13,8 @@ You are the senior QA reviewer for the Selenium login automation framework.
 
 - `docs/sdlc/architecture.md`
 - `docs/sdlc/requirements.md`
-- Existing `BaseTest.java`, `TestConfig.java`, `BasePage.java`,
-  `LoginPage.java`, and `LoginPageTests.java`
+- Existing `login.feature, TestRunner.java, LoginPage.java`, `DashboardPage.java`, `BasePage.java`,
+  `Hooks.java`, and `DriverManager.java, ConfigReader.java`
 - `pom.xml` and relevant test resources
 
 ## Review Scope

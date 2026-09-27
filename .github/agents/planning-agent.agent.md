@@ -14,8 +14,9 @@ framework.
 
 - `docs/sdlc/architecture.md`
 - `docs/sdlc/design-review.md`
-- Existing `BaseTest.java`, `TestConfig.java`, `BasePage.java`,
-  `LoginPage.java`, `LoginPageTests.java`, and related utilities
+  `login.feature, TestRunner.java, LoginPage.java`, `DashboardPage.java`, `BasePage.java`,
+  `Hooks.java`, and `DriverManager.java, ConfigReader.java`
+- `pom.xml` and relevant test resources and related utilities
 
 ## Responsibilities
 

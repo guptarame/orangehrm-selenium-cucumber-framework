@@ -36,7 +36,7 @@ architecture and implementation plan.
 
 ## Required Implementation Scope
 
-- Validate `pageLoadTimeout` with safe positive values and use it in `BaseTest`.
+- Validate TestRunner with safe positive values.
 - Preserve fresh-driver setup, teardown, Chrome/Firefox support, and safe
   headless behavior.
 - Keep `BasePage` as the shared home for explicit waits and page operations.
@@ -52,6 +52,9 @@ architecture and implementation plan.
 
 ## Coding Standards
 
+- Use the page object model consistently throughout the test framework.
+- all test cases should be independent and reusable and follow page object model principles.
+- all test cases should be passed successfully before merging any changes.
 - Follow existing package structure and Java 21 conventions.
 - Use clear PascalCase classes, camelCase methods, and `UPPER_SNAKE_CASE`
   constants.
@@ -85,10 +88,9 @@ Confirm:
 
 Modify only the files required by the plan, typically:
 
-- `TestConfig.java`, `BaseTest.java`, `BasePage.java`, and `LoginPage.java`
-- `LogUtil.java`, `ScreenshotUtil.java`, `TestLifecycleListener.java`,
-  and `TestData.java`
-- Existing login tests and directly related documentation
+- `login.feature, TestRunner.java, LoginPage.java`, `DashboardPage.java`, `BasePage.java`,
+`Hooks.java`, and `DriverManager.java, ConfigReader.java`
+
 
 Do not modify `pom.xml` when existing dependencies are sufficient.
 
