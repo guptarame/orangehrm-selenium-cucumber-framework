@@ -8,6 +8,7 @@ import com.orangehrm.pages.ResetPasswordPage;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import org.openqa.selenium.WebDriver;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -19,9 +20,18 @@ import static org.junit.Assert.assertTrue;
  */
 public class LoginSteps {
 
-    private final LoginPage loginPage = new LoginPage(DriverManager.getDriver());
-    private final DashboardPage dashboardPage = new DashboardPage(DriverManager.getDriver());
-    private final ResetPasswordPage resetPasswordPage = new ResetPasswordPage(DriverManager.getDriver());
+    // Single shared reference: fetched once per scenario instance and handed
+    // to every Page Object below, instead of each one independently calling
+    // DriverManager.getDriver().
+    private final WebDriver driver = DriverManager.getDriver();
+    private final LoginPage loginPage = new LoginPage(driver);
+    private final DashboardPage dashboardPage = new DashboardPage(driver);
+    private final ResetPasswordPage resetPasswordPage = new ResetPasswordPage(driver);
+
+    // Captured synchronously during the @TS_LOG_009 "When" step (at/around
+    // the login click) and asserted in the corresponding "Then" step, so the
+    // loading-indicator poll never starts after a step-boundary return.
+    private boolean loadingIndicatorDisplayed;
 
     // ---- Given -----------------------------------------------------
 
@@ -33,19 +43,9 @@ public class LoginSteps {
 
     // ---- When -----------------------------------------------------
 
-    @When("the user logs in with username {string} and password {string}")
-    public void the_user_logs_in_with_username_and_password(String username, String password) {
-        loginPage.login(username, password);
-    }
-
     @When("the user submits the login form with username {string} and password {string}")
     public void the_user_submits_the_login_form_with_username_and_password(String username, String password) {
         loginPage.login(username, password);
-    }
-
-    @When("the user enters {string} into the password field")
-    public void the_user_enters_into_the_password_field(String password) {
-        loginPage.enterPassword(password);
     }
 
     @When("the user logs in with valid credentials")
@@ -60,10 +60,35 @@ public class LoginSteps {
         loginPage.login(username, validPassword);
     }
 
+    @When("the user logs in with a valid username and password {string}")
+    public void the_user_logs_in_with_a_valid_username_and_password(String password) {
+        String validUsername = ConfigReader.getInstance().getValidUsername();
+        loginPage.login(validUsername, password);
+    }
+
+    @When("the user submits the login form with username {string} and a valid password")
+    public void the_user_submits_the_login_form_with_username_and_a_valid_password(String username) {
+        String validPassword = ConfigReader.getInstance().getValidPassword();
+        loginPage.login(username, validPassword);
+    }
+
+    @When("the user submits the login form with a valid username and password {string}")
+    public void the_user_submits_the_login_form_with_a_valid_username_and_password(String password) {
+        String validUsername = ConfigReader.getInstance().getValidUsername();
+        loginPage.login(validUsername, password);
+    }
+
+    @When("the user enters a valid password into the password field")
+    public void the_user_enters_a_valid_password_into_the_password_field() {
+        String validPassword = ConfigReader.getInstance().getValidPassword();
+        loginPage.enterPassword(validPassword);
+    }
+
     @When("the user submits valid credentials")
     public void the_user_submits_valid_credentials() {
         ConfigReader config = ConfigReader.getInstance();
-        loginPage.login(config.getValidUsername(), config.getValidPassword());
+        loadingIndicatorDisplayed = loginPage.submitAndCaptureLoadingIndicator(
+                config.getValidUsername(), config.getValidPassword());
     }
 
     @When("the user clicks the {string} link")
@@ -127,7 +152,7 @@ public class LoginSteps {
     @Then("a loading indicator should be displayed during authentication")
     public void a_loading_indicator_should_be_displayed_during_authentication() {
         assertTrue("Expected a loading indicator to be displayed while authentication was in progress",
-                loginPage.isLoadingIndicatorDisplayed());
+                loadingIndicatorDisplayed);
     }
 
     @Then("the user should be redirected to the Reset Password page")

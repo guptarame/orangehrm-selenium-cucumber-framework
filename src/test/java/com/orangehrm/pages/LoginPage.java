@@ -78,6 +78,23 @@ public class LoginPage extends BasePage {
         clickLogin();
     }
 
+    /**
+     * Performs a full login attempt and, in the same call (i.e. before any
+     * Cucumber step-boundary return), begins polling for the transient
+     * loading indicator. This avoids the race where a separate later
+     * {@code Then} step starts a fresh wait only after the spinner may have
+     * already appeared and disappeared on a fast auth response.
+     *
+     * @return {@code true} if the loading indicator was observed during the
+     *         poll window started immediately after the login click.
+     */
+    public boolean submitAndCaptureLoadingIndicator(String username, String password) {
+        enterUsername(username);
+        enterPassword(password);
+        clickLogin();
+        return isLoadingIndicatorDisplayed();
+    }
+
     // ---- Assertions / State readers -----------------------------------
 
     public boolean isErrorBannerDisplayed() {

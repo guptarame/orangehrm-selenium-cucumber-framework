@@ -15,7 +15,7 @@ Feature: OrangeHRM Login
 
   @TS_LOG_002 @negative
   Scenario: Login failure with valid username and invalid password
-    When the user logs in with username "Admin" and password "wrongpass"
+    When the user logs in with a valid username and password "wrongpass"
     Then the user should remain on the login page
     And the error banner "Invalid credentials" should be displayed
 
@@ -33,17 +33,17 @@ Feature: OrangeHRM Login
 
   @TS_LOG_005 @validation
   Scenario: Form validation when Username is left empty
-    When the user submits the login form with username "" and password "admin123"
+    When the user submits the login form with username "" and a valid password
     Then a "Required" validation error should be displayed under the Username field
 
   @TS_LOG_006 @validation
   Scenario: Form validation when Password is left empty
-    When the user submits the login form with username "Admin" and password ""
+    When the user submits the login form with a valid username and password ""
     Then a "Required" validation error should be displayed under the Password field
 
   @TS_LOG_007 @security @ui
   Scenario: Password field masks entered characters
-    When the user enters "admin123" into the password field
+    When the user enters a valid password into the password field
     Then the password field should mask the entered characters
 
   @TS_LOG_008 @ui
