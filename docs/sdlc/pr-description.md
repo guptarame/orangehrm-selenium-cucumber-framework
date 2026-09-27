@@ -84,3 +84,6 @@ Full detail in `docs/sdlc/architecture.md` §7 and `docs/sdlc/verification-repor
 ## Related
 - **PRD:** Confluence page 13271042 (`MFS` space) — linked in `docs/sdlc/requirements.md`
 - **Pipeline:** `sdlc_orchestrator` → requirements → architecture → design-review → planning → implementation → verification → this PR
+
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
