@@ -40,7 +40,7 @@ At minimum, evaluate tasks for:
 - Logging, screenshots, and lifecycle reporting
 - Test data organization
 - Valid, invalid, unknown-user, blank-field, Remember Me, and reset-link flows
-- Actual application, Chrome/Firefox, and slow-network validation
+- Actual application, Chrome, and slow-network validation
 - Documentation and CI/reporting needs
 
 Do not plan work that is already complete as new implementation. Mark existing

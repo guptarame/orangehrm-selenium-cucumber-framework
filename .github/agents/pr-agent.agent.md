@@ -52,7 +52,7 @@ This PR adds a reusable Selenium test automation framework for login testing. It
 
 ## Test Evidence
 - All tests passed
-- Browser coverage: Chrome, Firefox, Headless
+- Browser coverage: Chrome, Headless
 - Pass rate: 100%
 - Report: `docs/sdlc/verification-report.md`
 

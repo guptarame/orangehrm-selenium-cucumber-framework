@@ -6,7 +6,7 @@
 **Agent:** verification-agent
 **Verdict:** PASS WITH LIMITATIONS
 
-> This report supersedes the previous `verification-report.md` in this file, which described a different, earlier cycle (SLF4J logging task, PR #4, Edge attempt) and is no longer current. All numbers below were independently produced by the verification-agent for this cycle's T1–T6 changes; T7 (CI infra / Firefox profile / dependency-check plugin) was explicitly deferred by the implementation-agent and is out of scope here except for the ad hoc Firefox execution, which was run and is reported.
+> This report supersedes the previous `verification-report.md` in this file, which described a different, earlier cycle (SLF4J logging task, PR #4, Edge attempt) and is no longer current. All numbers below were independently produced by the verification-agent for this cycle's T1–T6 changes; T7 (CI infra / chrome profile / dependency-check plugin) was explicitly deferred by the implementation-agent and is out of scope here except for the ad hoc Firefox execution, which was run and is reported.
 
 ---
 

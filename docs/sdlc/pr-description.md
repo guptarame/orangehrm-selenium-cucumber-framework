@@ -24,7 +24,7 @@ This cycle of the Agentic SDLC pipeline reviewed the OrangeHRM login automation 
 - `pom.xml` on `main` was pointing at an unrelated, incompatible project scaffold (wrong `groupId`/`artifactId`, JUnit Jupiter, Selenium 4.25.0, no Cucumber at all — `main` never received the fix that was already pushed to `feature/login-coverage-improvements`). This PR carries that corrected `pom.xml` (Java 11, Selenium 4.27.0, Cucumber 7.20.1, JUnit 4.13.2, WebDriverManager 5.9.2, SLF4J 2.0.16) so `main` actually builds this framework.
 
 ### Deferred
-- CI Firefox-leg / OWASP Dependency-Check plugin work (impl-plan T7): infra work, not framework code — out of scope for this pass, left as a follow-up.
+- CI chrome-leg / OWASP Dependency-Check plugin work (impl-plan T7): infra work, not framework code — out of scope for this pass, left as a follow-up.
 
 ### SDLC Artifacts
 - `docs/sdlc/requirements.md` — extracted from Confluence PRD (US-AUTH-001)
@@ -49,7 +49,7 @@ Independently re-run by the verification stage (not reused from implementation):
 
 No leaked browser/driver processes observed after either run. No credential values found in console output or Cucumber JSON report.
 
-**Not verified** (explicitly, not assumed passing): Edge browser, network throttling, cross-browser matrix beyond Chrome/Firefox, load/performance testing.
+**Not verified** (explicitly, not assumed passing): Edge browser, network throttling, cross-browser matrix beyond Chrome, load/performance testing.
 
 ---
 
