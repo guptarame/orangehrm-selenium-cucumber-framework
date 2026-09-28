@@ -16,7 +16,7 @@ This is a Selenium WebDriver + Cucumber (Gherkin) + JUnit 4 + Maven test automat
 - `login.feature` (Gherkin) expresses 10 independent scenarios (`@TS_LOG_001`–`@TS_LOG_010`) against a shared `Background` (navigate to the login page).
 - `LoginSteps` binds each Gherkin step to Page Object calls and JUnit assertions — no Selenium calls or business logic live in the step class.
 - `LoginPage`, `DashboardPage`, `ResetPasswordPage` encapsulate locators/actions/state for their respective pages, all extending `BasePage`, which centralizes explicit-wait helpers.
-- `DriverManager` owns WebDriver creation/teardown (Chrome/Firefox/Edge) behind a `ThreadLocal`.
+- `DriverManager` owns WebDriver creation/teardown (Chrome) behind a `ThreadLocal`.
 - `Hooks` runs `@Before`/`@After` per scenario: driver bootstrap, failure screenshot capture, driver teardown.
 - `ConfigReader` is a singleton that loads `src/test/resources/config.properties` and lets any key be overridden by a non-empty JVM `-D` system property.
 - `TestRunner` is the JUnit4 `@RunWith(Cucumber.class)` entry point Maven Surefire executes, and it configures Cucumber's reporting plugins.
@@ -172,7 +172,7 @@ public String get(String key) {
 | FR-6 (empty username validation) | `@TS_LOG_004`, `@TS_LOG_005` | `LoginPage.isUsernameRequiredErrorDisplayed()`/`getUsernameRequiredErrorText()` | Covered |
 | FR-7 (empty password validation) | `@TS_LOG_004`, `@TS_LOG_006` | `LoginPage.isPasswordRequiredErrorDisplayed()`/`getPasswordRequiredErrorText()` | Covered |
 | FR-8 (forgot-password navigation) | `@TS_LOG_010` | `the_user_clicks_the_link` → `LoginPage.clickForgotPassword()`; `ResetPasswordPage.isResetPasswordPageDisplayed()` | Covered |
-| NFR-1 (compatibility: modern browser + JS) | — | Framework supports Chrome/Firefox/Edge (`DriverManager`), which exercises real browser JS engines, but no scenario explicitly targets "JS enabled" or cross-browser-matrix execution | **Gap** — no dedicated test; browser choice is a run parameter, not multi-browser CI coverage |
+| NFR-1 (compatibility: modern browser + JS) | — | Framework supports Chrome (`DriverManager`), which exercises real browser JS engines, but no scenario explicitly targets "JS enabled" or cross-browser-matrix execution | **Gap** — no dedicated test; browser choice is a run parameter, not multi-browser CI coverage |
 | NFR-2 (availability of server/DB) | — | No health-check/precondition step exists; a down server would simply fail scenario steps with a timeout | **Gap** — not architected as a distinct check |
 | NFR-3 (performance) | — | Not specified in requirements; no timing assertions in the framework | **Gap** — explicitly out of scope per requirements.md |
 | NFR-4 (security, beyond FR-2) | `@TS_LOG_007` covers password masking only | — | **Gap** — no lockout/rate-limit/session/encryption coverage; requirements.md notes none were specified |

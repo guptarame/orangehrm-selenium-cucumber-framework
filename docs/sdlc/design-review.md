@@ -34,7 +34,7 @@ No blocking defects were found in the Page Object logic, wait strategy, or Maven
 | FR-6 | Covered | `login.feature:28-37` `@TS_LOG_004`/`@TS_LOG_005` → `isUsernameRequiredErrorDisplayed()` |
 | FR-7 | Covered | `login.feature:28-42` `@TS_LOG_004`/`@TS_LOG_006` → `isPasswordRequiredErrorDisplayed()` |
 | FR-8 | Covered | `login.feature:58-61` `@TS_LOG_010` → `ResetPasswordPage.isResetPasswordPageDisplayed()` |
-| NFR-1 (compatibility/JS) | Gap (design-level, honestly reported) | Chrome/Firefox/Edge supported as a run parameter (`DriverManager.java`), but no scenario or CI matrix asserts cross-browser behavior |
+| NFR-1 (compatibility/JS) | Gap (design-level, honestly reported) | Chrome supported as a run parameter (`DriverManager.java`), but no scenario or CI matrix asserts cross-browser behavior |
 | NFR-2 (availability) | Gap (design-level) | No health-check/precondition step; a down server surfaces as a generic `TimeoutException`, not a distinct diagnostic |
 | NFR-3 (performance) | Gap, correctly out of scope | requirements.md states "not specified"; no timing assertions exist, none expected |
 | NFR-4 (security beyond FR-2) | Gap, correctly out of scope | No lockout/rate-limit/session coverage; requirements.md confirms none specified |

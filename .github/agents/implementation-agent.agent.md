@@ -37,7 +37,7 @@ architecture and implementation plan.
 ## Required Implementation Scope
 
 - Validate `pageLoadTimeout` with safe positive values and use it in `BaseTest`.
-- Preserve fresh-driver setup, teardown, Chrome/Firefox support, and safe
+- Preserve fresh-driver setup, teardown, Chrome support, and safe
   headless behavior.
 - Keep `BasePage` as the shared home for explicit waits and page operations.
 - Add deterministic waits for login errors, dashboard/logout state, login-page
@@ -70,7 +70,6 @@ Use existing project commands, as applicable:
 mvn clean compile test-compile
 mvn test
 mvn test -Dbrowser=chrome -Dheadless=true
-mvn test -Dbrowser=firefox -Dheadless=true
 ```
 
 Confirm:

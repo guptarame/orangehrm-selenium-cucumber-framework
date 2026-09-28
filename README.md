@@ -6,7 +6,7 @@ This project implements the full capstone SDLC artifacts and a Selenium Java Mav
 - Java 21+
 - Maven 3.9+
 - Internet access to `https://askomdch.com/account/`
-- Chrome (default) or Firefox installed locally
+- Chrome (default) installed locally
 
 ## Environment Variables (recommended)
 Set these only when you want to run credential-dependent tests:
@@ -23,7 +23,7 @@ mvn test
 
 ## Optional Runtime Overrides
 ```powershell
-mvn test -Dbrowser=firefox -Dheadless=true -DbaseUrl=https://askomdch.com/account/
+mvn test -Dbrowser=chrome -Dheadless=true -DbaseUrl=https://askomdch.com/account/
 ```
 
 ## SDLC Artifacts

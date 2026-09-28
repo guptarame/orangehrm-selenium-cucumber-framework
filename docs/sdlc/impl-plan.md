@@ -23,7 +23,7 @@
 | T5 | Remove the unused `pom.xml` `<env>qa</env>` property and its Surefire `systemPropertyVariables` passthrough | Nice-to-have #1 | Low | 10 min | None |
 | T6 | Refactor `LoginSteps` to call `DriverManager.getDriver()` once and share the same `WebDriver` reference across `LoginPage`/`DashboardPage`/`ResetPasswordPage` construction | Nice-to-have #5 | Low | 15 min | T2 (shared edits in `LoginSteps.java`) |
 | T7 | Add a Firefox execution leg (Maven profile or CI job) and an OWASP Dependency-Check plugin binding | Nice-to-have #3 and #4 | Medium | 45 min | T5 (shared edits in `pom.xml`) |
-| T8 | Full regression validation: run the complete `@TS_LOG_001`–`@TS_LOG_010` suite on Chrome and Firefox, confirm all should-fix fixes hold and nothing regressed | Validation | Low | 40 min | T1, T2, T3, T4, T5, T6, T7 |
+| T8 | Full regression validation: run the complete `@TS_LOG_001`–`@TS_LOG_010` suite on Chrome, confirm all should-fix fixes hold and nothing regressed | Validation | Low | 40 min | T1, T2, T3, T4, T5, T6, T7 |
 
 ---
 
@@ -48,10 +48,10 @@
   - All four scenarios (`@TS_LOG_002/005/006/007`) still pass with the same assertions/behavior as before the change.
   - No new config keys needed beyond the existing `valid.username`/`valid.password`.
 
-### T7 — Firefox CI leg + dependency-vulnerability scan (Nice-to-have #3, #4)
-- **Deliverables:** a Maven profile (or documented CI job) that runs `mvn test -Dbrowser=firefox`; an `owasp:dependency-check-maven` plugin binding added to `pom.xml` (bound to a non-default phase/profile so it doesn't block every local `mvn test`).
+### T7 — chrome CI leg + dependency-vulnerability scan (Nice-to-have #3, #4)
+- **Deliverables:** a Maven profile (or documented CI job) that runs `mvn test -Dbrowser=chrome`; an `owasp:dependency-check-maven` plugin binding added to `pom.xml` (bound to a non-default phase/profile so it doesn't block every local `mvn test`).
 - **Acceptance criteria:**
-  - `mvn test -Dbrowser=firefox` (or the added profile invocation) completes and its pass/fail result is documented.
+  - `mvn test -Dbrowser=chrome` (or the added profile invocation) completes and its pass/fail result is documented.
   - Dependency-check plugin is present in `pom.xml` and runs to completion via its bound goal without requiring network access during normal `mvn test`.
   - No credential values appear in any new CI/build config.
 
@@ -80,8 +80,8 @@ T5 ──▶ T7 ─────────┘
 1. **Foundation (config/documentation hardening):** T3 (`BasePage` exception narrowing), T4 (credential-externalization documentation), T5 (remove unused `env` property) — independent, no shared-file conflicts, safest to land first.
 2. **Framework (page-object synchronization fix):** T1 (FR-4 race fix in `LoginPage`/`LoginSteps`).
 3. **Test data / test scenarios:** T2 (credential routing in `login.feature`/`LoginSteps`).
-4. **Integration (framework cleanup + CI/tooling):** T6 (shared driver reference in `LoginSteps`), T7 (Firefox CI leg + dependency scan).
-5. **Validation:** T8 (full Chrome + Firefox regression of `@TS_LOG_001`–`@TS_LOG_010`, confirms all should-fix items hold).
+4. **Integration (framework cleanup + CI/tooling):** T6 (shared driver reference in `LoginSteps`), T7 (chrome CI leg + dependency scan).
+5. **Validation:** T8 (full Chrome + chrome regression of `@TS_LOG_001`–`@TS_LOG_010`, confirms all should-fix items hold).
 
 ---
 
@@ -120,7 +120,7 @@ All 4 Should-fix conditions and all 5 Nice-to-have items from `design-review.md`
 
 - All 8 tasks completed with their stated deliverables; no cycles in the dependency graph (verified in §3).
 - `mvn clean test-compile` succeeds after every phase.
-- `mvn test` (default Chrome) runs `@TS_LOG_001`–`@TS_LOG_010` to completion with exit code 0; `mvn test -Dbrowser=firefox` result documented (T8).
+- `mvn test` (default Chrome) runs `@TS_LOG_001`–`@TS_LOG_010` to completion with exit code 0; `mvn test -Dbrowser=chrome` result documented (T8).
 - `@TS_LOG_009` passes on 5 consecutive Chrome runs with the T1 fix in place (no flaky failures).
 - `grep` for `"Admin"`/`"admin123"` in `login.feature` returns zero matches after T2.
 - `BasePage.isDisplayed()` catches `TimeoutException`, not `Exception`, after T3.

@@ -25,7 +25,6 @@ You verify the Selenium login automation framework after implementation.
 ```text
 mvn clean test
 mvn clean test -Dbrowser=chrome
-mvn clean test -Dbrowser=firefox
 mvn clean test -Dheadless=true
 ```
 
@@ -39,7 +38,7 @@ mvn clean test -Dheadless=true
    - Remember Me persistence
    - lost-password navigation
    - required login controls
-5. Check Chrome, Firefox, and headless behavior when the environment supports
+5. Check Chrome and headless behavior when the environment supports
    them.
 6. Measure execution time and run repeated tests to identify flakiness.
 7. Exercise slow-network behavior only when throttling is available.
