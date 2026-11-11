@@ -1,183 +1,129 @@
 # Verification Report
 
 **Feature:** OrangeHRM Login Automation Framework (US-AUTH-001)
-**Cycle Source Documents:** `docs/sdlc/impl-plan.md` (T1–T7, this cycle), `docs/sdlc/architecture.md` (this cycle)
-**Date:** 2026-09-27
+**Cycle Source Documents:** `docs/sdlc/impl-plan.md` (this cycle, 2026-09-28 — T1 guarded screenshot capture, T2 documented credential exception, T3 = this verification task), `docs/sdlc/architecture.md` (this cycle, 2026-09-28), `docs/sdlc/requirements.md` (this cycle, 2026-09-28)
+**Date:** 2026-09-28
 **Agent:** verification-agent
-**Verdict:** PASS WITH LIMITATIONS
+**Branch:** feature/login-functionality-full-rerun
+**Verdict:** **PASS**
 
-> This report supersedes the previous `verification-report.md` in this file, which described a different, earlier cycle (SLF4J logging task, PR #4, Edge attempt) and is no longer current. All numbers below were independently produced by the verification-agent for this cycle's T1–T6 changes; T7 (CI infra / chrome profile / dependency-check plugin) was explicitly deferred by the implementation-agent and is out of scope here except for the ad hoc Firefox execution, which was run and is reported.
+> This report supersedes the previous version of this file, which described an unrelated prior cycle (dated 2026-09-27, referencing T1–T7 including an FR-4 race fix, Edge/Firefox CI runs, and a different task set). That content is stale and has been fully replaced below. This cycle's scope, per `impl-plan.md`, is narrow: T1 (guard `Hooks.tearDown`'s failure-screenshot capture) and T2 (document the plaintext demo-credential exception), followed by T3 — this verification pass, confirming FR-1..FR-8 coverage holds with no regression. No new page objects, drivers, or scenarios were introduced this cycle.
+>
+> Correction note: the role file `.github/agents/verification-agent.agent.md` contains stale references (`src/test/java/Github_Copilot/`, `TestConfig`, `BaseTest`, a "Remember Me" feature, separate unknown-user/blank-field scenarios) that do not match the real codebase. This report verifies against the actual code under `src/test/java/com/orangehrm/` and the real `login.feature` (10 scenarios, `@TS_LOG_001`–`@TS_LOG_010`). There is no "Remember Me" feature in this project.
 
 ---
 
 ## 1. Executive Summary
 
-Implementation-agent's T1–T6 changes were independently re-verified by re-reading every modified file and re-running the Maven build/test suite from a clean state, rather than trusting the implementation-agent's reported numbers. All checks passed:
+A full `mvn clean test` run was executed against the live OrangeHRM public demo site (`https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`) using a real, headed Chrome browser launched via WebDriverManager. Internet access, a Chrome binary, and a display were all available in this environment, so the primary requested command ran to completion — no environment-limitation fallback was needed.
 
-- `mvn clean compile test-compile` — BUILD SUCCESS.
-- `mvn clean test` (default Chrome) — **10/10 scenarios, 32/32 steps passed**, BUILD SUCCESS.
-- `mvn clean test -Dbrowser=firefox` — **10/10 scenarios, 32/32 steps passed**, BUILD SUCCESS.
-- `mvn test -Dcucumber.filter.tags="@TS_LOG_009"` — run **5** consecutive times, **5/5 passed, 0 flaky failures**.
-- T1 (loading-indicator race), T2 (credential routing), T3 (`isDisplayed` exception narrowing), T5 (unused `<env>` removal) were all confirmed at the code level, not just by test pass/fail.
-- No orphaned `chromedriver.exe`/`geckodriver.exe`/`firefox.exe` processes were found after either run — driver teardown is clean.
-- No credential values leaked into console output, the Cucumber JSON report, or any modified source file's comments.
+- **`mvn clean test`** (default Chrome, headed) — **BUILD SUCCESS**, **10/10 scenarios passed, 32/32 steps passed**, 0 failures, 0 errors, 0 skipped.
+- T1 (`Hooks.tearDown`'s guarded screenshot capture) was statically confirmed correct by code review: the screenshot capture is wrapped in its own try/catch (catching `WebDriverException`) nested inside an outer try, with `DriverManager.quitDriver()` placed in a `finally` block that runs unconditionally regardless of whether the scenario failed, whether a screenshot was attempted, or whether that attempt threw.
+- T2 (documented credential exception) was confirmed present, explicit, and scoped in `src/test/resources/config.properties` (lines 20–35).
+- No scenario failed in this run, so the failure-screenshot attachment path itself was not exercised live in this run's report output (by design — all scenarios passed); this is noted as a limitation in §5, not a defect.
+- No credential value (`admin123`) was found anywhere in console output or in any generated report file (`target/cucumber-reports/cucumber-html-report.html`, `cucumber.json`, `cucumber-junit.xml`). The literal string `Admin` appears only as part of the scenario title text ("Successful login with valid Admin credentials"), never as the actual submitted/logged credential value.
 
-**Verdict is PASS WITH LIMITATIONS, not a plain PASS**, because: (a) T7 (Firefox CI profile, OWASP dependency-check plugin) is confirmed deferred/not implemented, matching the stated scope; (b) one literal reading of the T2 acceptance criterion (`grep -c "Admin\|admin123" login.feature` returns `0`) is not exactly met — see §3.2 — though the substantive fix is correct; (c) several items (network throttling, cross-browser matrix beyond Chrome/Firefox, load/performance, Edge) are explicitly NOT VERIFIED, per §7.
+**Verdict: PASS.** All 10 tagged scenarios passed on a real, unmodified run against the live target; both design-review Should-fix items (T1, T2) are correctly implemented; no credential leakage found; no regression against FR-1..FR-8.
 
 ---
 
-## 2. Maven Commands Run (independently, this session)
+## 2. Maven Command(s) Run and Exact Results
 
-| # | Command | Result | Scenarios | Steps | Wall time |
-|---|---------|--------|-----------|-------|-----------|
-| 1 | `mvn clean compile test-compile` | BUILD SUCCESS | — | — | (silent `-q`, no errors/warnings) |
-| 2 | `mvn clean test` (default browser = chrome, headed) | BUILD SUCCESS | 10 passed | 32 passed | 59.1s (Cucumber) / 1:03 total |
-| 3 | `mvn clean test -Dbrowser=firefox` | BUILD SUCCESS | 10 passed | 32 passed | 1m43.8s (Cucumber) / 1:47 total |
-| 4 | `mvn test -Dcucumber.filter.tags="@TS_LOG_009"` × 5 | BUILD SUCCESS ×5 | 1 passed ×5 | 3 passed ×5 | ~8–9s each |
+| # | Command | Result | Scenarios | Steps | Time |
+|---|---------|--------|-----------|-------|------|
+| 1 | `mvn clean test` (default browser=chrome, headed, live network) | **BUILD SUCCESS** | 10 passed, 0 failed, 0 skipped | 32 passed, 0 failed, 0 skipped | Cucumber-reported: 0m48.585s; Surefire-reported: 49.28s; total Maven wall time: 52.777s |
 
-All commands were run from a clean `mvn clean` state where applicable; JDK 21.0.10 / Maven 3.8.9 in this environment (repo targets Java 11 source/target compatibility — no compatibility issue observed under JDK 21). `Tests run: 10, Failures: 0, Errors: 0, Skipped: 0` was independently observed in the Surefire summary for both the Chrome and Firefox full-suite runs.
+Environment: JDK 21.0.10 (Oracle), Maven 3.8.9, Windows 11. The project targets Java 11 source/target compatibility (`pom.xml`); no compatibility issue was observed running under JDK 21 (only a benign `[WARNING] system modules path not set in conjunction with -source 11` from javac, unrelated to test outcome).
+
+Because the first command succeeded fully and unambiguously (real internet access, real Chrome binary via WebDriverManager, real display all present), the `-Dheadless=true` fallback run specified as a contingency in the task instructions was not necessary and was not run. Surefire summary independently confirms: `Tests run: 10, Failures: 0, Errors: 0, Skipped: 0`.
+
+No repeat run was performed: the single run was unambiguous (clean BUILD SUCCESS, no flaky-looking timing in the loading-indicator or validation scenarios), so the optional "note any flakiness if run more than once" step was not triggered.
 
 ---
 
-## 3. Framework Component / Task-Level Verification
+## 3. Framework Component Verification
 
-### 3.1 T1 — FR-4 loading-indicator race fix
+### 3.1 Configuration (`config/ConfigReader.java`)
+Thread-safe double-checked-locking singleton; loads `config.properties` from the classpath exactly once. `get(key)` gives priority to a non-blank `-Dkey=value` JVM system property over the properties-file value, throwing `RuntimeException` if neither is present for a required key (`getBaseUrl()`, `getValidUsername()`, `getValidPassword()`). Typed getters (`getBoolean`, `getInt`) have hard-coded defaults for optional keys (`browser`→chrome, `headless`→false, `implicit.wait`→5, `explicit.wait`→15, `page.load.timeout`→30), consistent with architecture.md §5.4. Verified by direct read — matches architecture.md's documented behavior exactly.
 
-Read `LoginPage.java` and `LoginSteps.java` directly (not just the diff description):
+### 3.2 Driver lifecycle (`driver/DriverManager.java`)
+`ThreadLocal<WebDriver>`-backed singleton-per-thread. `getDriver()` lazily initializes on first access; `initDriver()` switches on `config.getBrowser()` (chrome/firefox/edge, default chrome via WebDriverManager auto-resolution), applies implicit wait and page-load timeout, and maximizes the window unless headless. `quitDriver()` null-checks, calls `driver.quit()`, and clears the ThreadLocal. This run resolved and used chromedriver 153.0.8010.52 for Chrome 153 automatically; each of the 10 scenarios independently launched and quit a fresh Chrome session (confirmed in console log: 10× "Initializing WebDriver" / 10× "Quitting WebDriver session" pairs, one per scenario).
 
-- `LoginPage.submitAndCaptureLoadingIndicator(username, password)` (new method) performs `enterUsername` → `enterPassword` → `clickLogin` → `return isLoadingIndicatorDisplayed()` — all in one method call, with the indicator poll (`isDisplayed(LOADING_INDICATOR, 3)`) starting immediately after the click, with **no intervening Cucumber step-boundary return**.
-- `LoginSteps.the_user_submits_valid_credentials()` (the `When` step) now calls this method and stores the boolean into the instance field `loadingIndicatorDisplayed`.
-- `LoginSteps.a_loading_indicator_should_be_displayed_during_authentication()` (the `Then` step) asserts the **stored field**, and does **not** re-poll the DOM.
-- No `Thread.sleep` was introduced anywhere in `LoginPage.java` or `LoginSteps.java` (confirmed by reading both files in full).
-- **Conclusion: this genuinely closes the race**, not a cosmetic change — the wait now starts at the click rather than after an uncontrolled step-dispatch gap. Confirmed further by the 5/5 pass rate on `@TS_LOG_009` re-runs (§5) and by `@TS_LOG_001` (same `LoginPage.login()` path) continuing to pass unchanged in both full-suite runs.
+### 3.3 Waits (`pages/BasePage.java`)
+No `Thread.sleep()` present. All synchronization goes through `WebDriverWait` (`waitForVisible`, `waitForAllVisible`, `waitForClickable`, `waitForUrlContains`). `isDisplayed(locator, timeoutSeconds)` wraps a short-timeout `WebDriverWait` in try/catch, deliberately catching `TimeoutException` and returning `false` rather than propagating — used correctly for negative-outcome assertions (e.g., "no error banner is present"). Matches architecture.md §5.3 exactly.
 
-### 3.2 T2 — Credential routing through ConfigReader
+### 3.4 Page Objects (`pages/LoginPage.java`, `DashboardPage.java`, `ResetPasswordPage.java`)
+All extend `BasePage`; each `LoginSteps` step delegates to a single shared Page Object instance constructed once per scenario from `DriverManager.getDriver()` (confirmed in `LoginSteps.java` field initializers) — no independent per-call driver fetches. Assertions live only in `LoginSteps`, not in the page objects, consistent with POM separation of concerns described in architecture.md.
 
-Read `login.feature` and `LoginSteps.java` directly:
-
-- `@TS_LOG_002` (`the user logs in with a valid username and password "wrongpass"`), `@TS_LOG_005` (`... username "" and a valid password`), `@TS_LOG_006` (`... a valid username and password ""`), `@TS_LOG_007` (`the user enters a valid password into the password field`) — **none of these four scenarios' step text contains a literal `"Admin"` or `"admin123"` value.** Each corresponding new `LoginSteps` method (`the_user_logs_in_with_a_valid_username_and_password`, `the_user_submits_the_login_form_with_username_and_a_valid_password`, `the_user_submits_the_login_form_with_a_valid_username_and_password`, `the_user_enters_a_valid_password_into_the_password_field`) calls `ConfigReader.getInstance().getValidUsername()`/`getValidPassword()` and passes the result into the Page Object — genuinely routed through config, not just renamed literals.
-- **Literal acceptance-criterion check, run exactly as specified in impl-plan.md:**
-  ```
-  $ grep -c "Admin\|admin123" src/test/resources/features/login.feature
-  1
-  ```
-  This returns `1`, not `0` as the plan's acceptance criterion stated. The single match is line 12: `Scenario: Successful login with valid Admin credentials` — the **scenario title/description prose** for `@TS_LOG_001` (not one of the four target scenarios, and not step text/input data). `@TS_LOG_001`'s actual step (`the user logs in with valid credentials`) has no literal. **This is a minor, cosmetic gap against the letter of the plan's grep-based acceptance criterion, not a functional gap** — the substantive goal (no hardcoded credential literals feeding into `@TS_LOG_002/005/006/007`'s executable steps) is met. Flagged here for transparency rather than silently rounded to "pass."
-- Genuinely-invalid test literals (`"wrongpass"`, `"InvalidUser"`, `""`) remain as literals, per plan intent — confirmed correct, these are not credentials being centralized.
-- All four scenarios pass with identical assertions to before (confirmed via both full-suite runs).
-
-### 3.3 T3 — `BasePage.isDisplayed()` exception narrowing
-
-Read `BasePage.java` directly:
+### 3.5 T1 — Guarded teardown (`hooks/Hooks.java`) — code-level confirmation
 ```java
-protected boolean isDisplayed(By locator, int timeoutSeconds) {
+@After
+public void tearDown(Scenario scenario) {
     try {
-        new WebDriverWait(driver, Duration.ofSeconds(timeoutSeconds))
-                .until(ExpectedConditions.visibilityOfElementLocated(locator));
-        return true;
-    } catch (TimeoutException e) {
-        return false;
+        WebDriver driver = DriverManager.getDriver();
+        if (scenario.isFailed() && driver instanceof TakesScreenshot) {
+            LOGGER.warn(...);
+            try {
+                byte[] screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+                scenario.attach(screenshot, "image/png", scenario.getName() + "-failure");
+            } catch (WebDriverException e) {
+                LOGGER.warn("Failed to capture failure screenshot for scenario: {}", scenario.getName(), e);
+            }
+        }
+    } finally {
+        DriverManager.quitDriver();
+        LOGGER.info("Finished scenario: {} - status: {}", scenario.getName(), scenario.getStatus());
     }
 }
 ```
-Confirmed: the catch clause is scoped to `org.openqa.selenium.TimeoutException` (imported explicitly), not generic `Exception`. A real driver/session error (e.g. `NoSuchSessionException`, `WebDriverException`) will now propagate instead of being silently swallowed as "element not displayed." Matches T3's stated acceptance criterion exactly.
+- The screenshot-capture call is wrapped in its own try/catch, catching `WebDriverException` specifically (the exception type a crashed/invalid driver session would realistically throw from `getScreenshotAs`) and logging a warning with scenario name + exception instead of propagating.
+- `DriverManager.quitDriver()` sits in an outer `finally` block, so it executes on every code path through `tearDown`: scenario passed (screenshot block skipped entirely), scenario failed with successful screenshot capture, or scenario failed with a screenshot-capture exception. No path can exit `tearDown` without `quitDriver()` having run.
+- This satisfies all three of T1's acceptance criteria in `impl-plan.md` (no exception path can skip `quitDriver()`; a forced screenshot-capture failure would be caught and logged, not propagated; healthy-driver screenshot capture on a genuinely failed scenario is unchanged).
+- **Live-run caveat:** since all 10 scenarios passed in this run, the `scenario.isFailed()` branch (and therefore both the "happy" screenshot-attach path and the new catch-block path) was not exercised live. This is a limitation of a clean, all-passing run, not a defect — the guard's correctness is established by static code review per the task's own allowance ("you don't need to force a driver crash to test this — static-confirm the try/finally structure").
 
-### 3.4 T4 — Credential-externalization documentation
+### 3.6 T2 — Documented credential exception (`src/test/resources/config.properties`)
+Lines 20–35 contain the pre-existing baseline comment plus a new, explicit block: *"Accepted exception (design-review.md, this cycle): committing these two values in plaintext is a deliberate, scoped decision, not an oversight — it is accepted only while the target under test remains OrangeHRM's public opensource-demo instance... It must be revisited (values removed from this file, supplied only via the -D overrides / CI secret injection described above) before this framework is ever pointed at a non-public or production environment."* This meets all four of T2's acceptance criteria: present and locatable via grep for "demo"/"exception"; names the scoping condition explicitly; introduces no real/non-demo credential; leaves `valid.username=Admin` / `valid.password=admin123` unchanged.
 
-Read `config.properties`: a comment block above `valid.username`/`valid.password` explicitly states these are OrangeHRM's public demo values, and documents that `-Dvalid.username=...`/`-Dvalid.password=...` (or CI secret injection into the same system properties) already takes priority via `ConfigReader.get()`, with no code change required. This is a documentation-only task per plan design (functional change explicitly deferred) — confirmed present and accurate.
-
-### 3.5 T5 — Removed unused `pom.xml` `<env>` property
-
-Read `pom.xml` in full: no `<env>` property exists under `<properties>` (only `maven.compiler.source/target`, `project.build.sourceEncoding`, the five dependency-version properties, and `<browser>chrome</browser>`), and the Surefire plugin's `<systemPropertyVariables>` contains only `<browser>${browser}</browser>` — no `<env>` passthrough. `grep -n "env" pom.xml` returns no matches. Confirmed fully removed, matching T5's acceptance criterion.
-
-### 3.6 T6 — Shared `WebDriver` reference in `LoginSteps`
-
-Read `LoginSteps.java`: a single `private final WebDriver driver = DriverManager.getDriver();` field is declared once, and `loginPage`, `dashboardPage`, `resetPasswordPage` are all constructed by passing this same `driver` reference — no repeated `DriverManager.getDriver()` calls scattered across the class. Confirmed as described.
-
-### 3.7 Driver lifecycle (DriverManager / Hooks)
-
-- `DriverManager.getDriver()` lazily inits via `ThreadLocal`; `quitDriver()` calls `driver.quit()` and clears the `ThreadLocal` entry. `Hooks.setUp` (`@Before`) forces driver creation before any step runs; `Hooks.tearDown` (`@After`) always calls `DriverManager.quitDriver()`, screenshotting first only if `scenario.isFailed()`.
-- Independently checked for leaked sessions: after both the Chrome and the Firefox full-suite runs, `tasklist | grep -i "chromedriver\|geckodriver\|firefox"` returned **zero** matching processes. (Numerous pre-existing `chrome.exe` processes were present on the machine both before and after the runs — these are the user's own browser windows, not WebDriver-controlled sessions, since no `chromedriver.exe` process accompanies them. No orphaned WebDriver-controlled browser session was found.)
-
-### 3.8 Credential safety in logs/screenshots
-
-- Grepped the full console output of the Chrome full-suite run for `admin123` — zero matches. Grepped `target/cucumber-reports/cucumber.json` for `admin123` — zero matches.
-- `Hooks.java` reviewed in full: screenshot capture (`TakesScreenshot`/`OutputType.BYTES`) only fires on scenario failure, attaches a PNG, and contains no logging of form field values or credentials. SLF4J log lines in `Hooks`/`DriverManager` log only scenario name, status, browser name, and headless flag — never username/password values.
-- The only places `"Admin"`/`"admin123"` appear in the repo are: `config.properties` (intentional, documented per T4) and prior-cycle SDLC docs (`design-review.md`, `impl-plan.md`) describing the *pre-fix* state as historical findings — not leaked at runtime.
+### 3.7 Logging / screenshots / credential safety
+- Console log (full `mvn clean test` output) was inspected: no occurrence of the literal password value `admin123` anywhere. The literal `Admin` appears solely as part of the Gherkin scenario title "Successful login with valid Admin credentials" (feature-file text, not a logged credential value).
+- `grep -il "admin123" target/cucumber-reports/*` → **no matches** (exit code 1) across `cucumber-html-report.html`, `cucumber.json`, `cucumber-junit.xml`.
+- `grep` for `Admin` in the same report files matches only the same scenario-title substring, confirmed by context extraction (e.g., `...ul login with valid Admin credentials","descr...`) — never a credential value.
+- Reporting plugins configured in `TestRunner.java` exactly match architecture.md §5.6: `pretty`, `summary`, HTML, JSON, JUnit-XML under `target/cucumber-reports/`, `monochrome=true`. No unexpected report format present.
 
 ---
 
-## 4. Scenario / Cross-Browser Coverage
+## 4. Scenario Coverage Table
 
-`login.feature` was read in full: it defines exactly 10 scenarios, `@TS_LOG_001`–`@TS_LOG_010`, under a single `Background`. **It does not include any "Remember Me" scenario or feature** — confirmed by reading the whole file; that check is skipped as instructed, and is stated explicitly here rather than silently omitted.
-
-| Test ID | Scenario | Maps to | Chrome (this run) | Firefox (this run) |
-|---|---|---|---|---|
-| TS_LOG_001 | Valid login → Dashboard redirect | Valid login | PASS | PASS |
-| TS_LOG_002 | Valid username + invalid password | Invalid password | PASS | PASS |
-| TS_LOG_003 | Invalid username + valid password | Unknown user | PASS | PASS |
-| TS_LOG_004 | Both username & password empty | Blank fields | PASS | PASS |
-| TS_LOG_005 | Username empty | Blank fields (username) | PASS | PASS |
-| TS_LOG_006 | Password empty | Blank fields (password) | PASS | PASS |
-| TS_LOG_007 | Password field masks input | Security/UI | PASS | PASS |
-| TS_LOG_008 | All required login controls displayed | Required-controls display | PASS | PASS |
-| TS_LOG_009 | Loading indicator during auth (T1 fix) | UI/timing | PASS (+5/5 repeat) | PASS |
-| TS_LOG_010 | Forgot-password link → Reset Password page | Reset/forgot-password nav | PASS | PASS |
-
-All required scenario categories named in this verification's scope (valid login, invalid password, unknown user, blank fields, reset/forgot-password nav, required-controls display) are present and passing on both browsers actually run. Edge is **not** run/verified this cycle (not requested; T7's Firefox leg was the only cross-browser item exercised).
-
----
-
-## 5. Repeated-Run Reliability — T1 Fix (`@TS_LOG_009`)
-
-`mvn test -Dcucumber.filter.tags="@TS_LOG_009"` was run **5 consecutive times** on Chrome (headed, default config) in this session:
-
-| Run | Scenarios | Steps | Result |
+| Tag | Scenario | Maps to FR | Result |
 |---|---|---|---|
-| 1 | 1 passed | 3 passed | PASS |
-| 2 | 1 passed | 3 passed | PASS |
-| 3 | 1 passed | 3 passed | PASS |
-| 4 | 1 passed | 3 passed | PASS |
-| 5 | 1 passed | 3 passed | PASS |
+| @TS_LOG_001 | Successful login with valid Admin credentials | FR-3 | **PASSED** |
+| @TS_LOG_002 | Login failure with valid username and invalid password | FR-5 | **PASSED** |
+| @TS_LOG_003 | Login failure with invalid username and valid password | FR-5 | **PASSED** |
+| @TS_LOG_004 | Form validation when both Username and Password are empty | FR-6, FR-7 | **PASSED** |
+| @TS_LOG_005 | Form validation when Username is left empty | FR-6 | **PASSED** |
+| @TS_LOG_006 | Form validation when Password is left empty | FR-7 | **PASSED** |
+| @TS_LOG_007 | Password field masks entered characters | FR-2 | **PASSED** |
+| @TS_LOG_008 | All required login controls are displayed | FR-1 | **PASSED** |
+| @TS_LOG_009 | Loading indicator is shown while authentication is in progress | FR-4 | **PASSED** |
+| @TS_LOG_010 | Forgot password link navigates to the reset password page | FR-8 | **PASSED** |
 
-**5/5 passed, 0 flaky failures** — independently meets the plan's "5 consecutive local Chrome runs, 0 flaky failures" acceptance criterion for T1.
-
----
-
-## 6. Logging / Screenshot / Credential-Safety Results
-
-- Console logging via SLF4J (`Hooks`, `DriverManager`) observed on every scenario in every run: scenario start/finish + status, driver init (browser + headless flag), driver quit. No credential values logged.
-- Failure-screenshot path (`Hooks.tearDown`) was **not exercised** in this run because no scenario failed in either full-suite run — this path is unchanged from before this cycle's edits and was not modified by T1–T6, so it carries no new risk, but it is explicitly NOT independently re-verified as a failure-path this cycle (would require a deliberately-broken scenario to trigger).
-- No credential values found in console output, `cucumber.json`, or any of the seven modified/reviewed source files' comments (`LoginPage.java`, `LoginSteps.java`, `BasePage.java`, `login.feature`, `config.properties`, `pom.xml`, `DriverManager.java`, `Hooks.java`) beyond the intentional, documented plaintext demo credential in `config.properties` itself (unchanged behavior, now with T4's added disclosure comment).
+**10/10 scenarios passed. All of FR-1 through FR-8 have at least one passing scenario this run — no regression against architecture.md §7's traceability table.**
 
 ---
 
-## 7. Known Issues, Limitations, and Recommended Actions (NOT VERIFIED — explicit)
+## 5. Known Issues / Limitations and Recommended Actions
 
-The following were **not** executed and are treated as NOT VERIFIED rather than assumed to pass:
-
-1. **Edge browser** — `DriverManager` supports an `edge` branch, but it was not run this cycle (out of scope; only Chrome + Firefox were requested/run).
-2. **Network throttling / slow-network behavior** — no tooling available in this environment to simulate this; not exercised.
-3. **Cross-browser matrix beyond Chrome/Firefox** (e.g. Safari, mobile browsers, BrowserStack/Sauce Labs grid) — not applicable to this framework's current scope and not exercised.
-4. **Load/performance testing** — out of scope per requirements.md/architecture.md (NFR-3 explicitly not specified); no timing assertions exist in the framework and none were added or verified.
-5. **T7 (Firefox CI profile as a Maven profile/CI job, OWASP dependency-check plugin)** — confirmed deferred by implementation-agent, out of scope for this cycle. The Firefox *execution* itself (`-Dbrowser=firefox`) was run ad hoc and passed (§2), but no CI profile/job wiring or dependency-check plugin binding exists in `pom.xml` — confirmed absent by reading the full file.
-6. **Failure-path re-verification** — the screenshot-on-failure hook logic was read and reasoned about but not triggered by an actual failing scenario this cycle (see §6).
-7. **T2 grep acceptance criterion, literal reading** — see §3.2: `grep -c "Admin\|admin123" login.feature` returns `1`, not `0`, due to prose in the `@TS_LOG_001` scenario title. Recommend either accepting this as intentional (title prose, not a step literal) or, if strict zero-match is required, rewording that one scenario title in a future cycle — low priority, no functional impact.
+1. **Failure-screenshot path not exercised live this run.** All 10 scenarios passed, so `Hooks.tearDown`'s `scenario.isFailed()` branch (including T1's new catch block) never executed in this run. Mitigated by the static code review in §3.5, per the task's own allowance. *Recommendation:* if a future cycle wants live confirmation, temporarily force one scenario to fail (e.g., point `base.url` at an unreachable host for one run) and confirm a screenshot attachment appears in `cucumber-html-report.html`; not required this cycle.
+2. **Single run only.** Per the task instructions, a repeat run was optional and only warranted if the first run raised doubt; it did not, so flakiness could not be (and was not claimed to be) assessed across multiple runs this cycle. Architecture.md §5.3 flags `LoginPage.isLoadingIndicatorDisplayed()` (FR-4, `@TS_LOG_009`) as the one inherently timing-sensitive check (3-second poll window); it passed cleanly this run with no visible timing issue.
+3. **No cross-browser (Firefox/Edge) or headless run performed this cycle** — the task's headless fallback was rendered unnecessary by the primary command's success, and Firefox/Edge were out of scope for this narrow T1/T2/T3 cycle per `impl-plan.md`. This is consistent with `impl-plan.md`'s N3 backlog item (no CI matrix for non-default browsers) — not a regression, not newly introduced.
+4. **Environment-variable (`System.getenv`) override support remains absent** in `ConfigReader` (only `-D` system properties are read) — this is `impl-plan.md`'s N1 backlog item, explicitly out of scope this cycle, unchanged from architecture.md §5.4's documented gap.
+5. None of the above are blocking. No test genuinely failed; nothing was suppressed or worked around to force a pass.
 
 ---
 
-## 8. Traceability to impl-plan.md and Source Files
+## 6. Traceability
 
-| Plan Task | Status | Verified Against |
-|---|---|---|
-| T1 — FR-4 loading-indicator race fix | **Verified — fix is real, not cosmetic** | `src/test/java/com/orangehrm/pages/LoginPage.java` (`submitAndCaptureLoadingIndicator`), `src/test/java/com/orangehrm/stepdefinitions/LoginSteps.java` (`loadingIndicatorDisplayed` field), 5/5 repeat pass (§5) |
-| T2 — Credential routing via ConfigReader | **Verified, with one noted cosmetic gap (§3.2)** | `src/test/resources/features/login.feature`, `src/test/java/com/orangehrm/stepdefinitions/LoginSteps.java` |
-| T3 — Narrow `isDisplayed()` to `TimeoutException` | **Verified** | `src/test/java/com/orangehrm/pages/BasePage.java` |
-| T4 — Credential-externalization documentation | **Verified** | `src/test/resources/config.properties` |
-| T5 — Remove unused `<env>` property | **Verified** | `pom.xml` |
-| T6 — Shared `WebDriver` reference in `LoginSteps` | **Verified** | `src/test/java/com/orangehrm/stepdefinitions/LoginSteps.java` |
-| T7 — Firefox CI leg + dependency-check plugin | **Deferred (confirmed out of scope); ad hoc Firefox run passed** | `pom.xml` (no profile/plugin added); Firefox run in §2 |
-| T8 — Full regression validation | **Superseded by this independent verification pass** | §2, §4 |
-
-**Source files read/verified this cycle:** `docs/sdlc/impl-plan.md`, `docs/sdlc/architecture.md`, `src/test/java/com/orangehrm/pages/LoginPage.java`, `src/test/java/com/orangehrm/pages/BasePage.java`, `src/test/java/com/orangehrm/stepdefinitions/LoginSteps.java`, `src/test/java/com/orangehrm/driver/DriverManager.java`, `src/test/java/com/orangehrm/hooks/Hooks.java`, `src/test/resources/features/login.feature`, `src/test/resources/config.properties`, `pom.xml`.
-
-**Next Stage:** PR creation, if the T2 §3.2 cosmetic note is accepted as-is (recommended, since it is non-functional). No loop-back to implementation-agent is required for a plain PASS decision, but the §3.2 finding should be acknowledged in the PR description for transparency.
+- **To `impl-plan.md`:** T1 (guarded `Hooks.tearDown` screenshot capture) — verified correct via code review, §3.5. T2 (documented credential exception in `config.properties`) — verified present and complete, §3.6. T3 (this verification task) — executed: `mvn clean test` ran all 10 `@TS_LOG_001`–`@TS_LOG_010` scenarios to completion with exit code 0 (BUILD SUCCESS), preserving FR-1..FR-8 "Covered" status with no regression, no new scenario added, no `login.feature` content changed. All of `impl-plan.md` §6 "Success criteria this cycle" are met.
+- **To `requirements.md`:** FR-1 (§4), FR-2 (§4), FR-3 (§4), FR-4 (§4), FR-5 (§4), FR-6 (§4), FR-7 (§4), FR-8 (§4) — each has at least one passing scenario this run (§4 table above), matching requirements.md's Functional Requirements and architecture.md §7's traceability table. NFR-1 (browser compatibility) and NFR-2 (JavaScript enabled) remain structurally/partially covered by construction (real, JS-enabled Chrome browser used throughout) — unchanged from architecture.md, not a regression. NFR-3..NFR-6 remain explicitly out of scope per requirements.md, unchanged.
+- **To `architecture.md`:** §2 Components, §4 Test Execution Flow, §5.3 Waits, §5.5 Credential handling, §5.6 Reporting, and §5.7 Failure screenshots were all independently re-confirmed against the actual current source in §3 above — no divergence found between the architecture document and the running code.
+- **Next stage:** No further code changes indicated. Both design-review Should-fix items (T1, T2) are closed. Backlog Nice-to-have items N1–N5 (impl-plan.md §1) remain correctly deferred and are not re-raised here.

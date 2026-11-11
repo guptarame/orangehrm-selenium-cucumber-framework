@@ -7,6 +7,7 @@ import io.cucumber.java.Scenario;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,13 +32,23 @@ public class Hooks {
 
     @After
     public void tearDown(Scenario scenario) {
-        WebDriver driver = DriverManager.getDriver();
-        if (scenario.isFailed() && driver instanceof TakesScreenshot) {
-            LOGGER.warn("Scenario failed: {} - attaching failure screenshot", scenario.getName());
-            byte[] screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
-            scenario.attach(screenshot, "image/png", scenario.getName() + "-failure");
+        try {
+            WebDriver driver = DriverManager.getDriver();
+            if (scenario.isFailed() && driver instanceof TakesScreenshot) {
+                LOGGER.warn("Scenario failed: {} - attaching failure screenshot", scenario.getName());
+                try {
+                    byte[] screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+                    scenario.attach(screenshot, "image/png", scenario.getName() + "-failure");
+                } catch (WebDriverException e) {
+                    // Screenshot capture is a best-effort side-effect - a crashed/invalid
+                    // driver session here must not mask the original scenario failure or
+                    // prevent the driver from being quit below.
+                    LOGGER.warn("Failed to capture failure screenshot for scenario: {}", scenario.getName(), e);
+                }
+            }
+        } finally {
+            DriverManager.quitDriver();
+            LOGGER.info("Finished scenario: {} - status: {}", scenario.getName(), scenario.getStatus());
         }
-        DriverManager.quitDriver();
-        LOGGER.info("Finished scenario: {} - status: {}", scenario.getName(), scenario.getStatus());
     }
 }

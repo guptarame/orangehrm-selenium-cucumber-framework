@@ -1,7 +1,7 @@
-# Pull Request: Fix login loading-indicator race and credential hardcoding
+# Pull Request: Guard teardown screenshot capture and document demo-credential exception
 
 ## Summary
-This cycle of the Agentic SDLC pipeline reviewed the OrangeHRM login automation framework against PRD **US-AUTH-001** (Confluence: `MFS` space, page 13271042) and closed the two **Should-fix** conditions raised by design review that had concrete code-level evidence, plus two smaller hardening/cleanup items.
+This is a re-validation cycle of the already-implemented and merged OrangeHRM login automation framework (PRD **US-AUTH-001**, Confluence page 13271042; original build merged via PRs #1-#3). This cycle re-checked requirements, architecture, and design against the current codebase and confirmed FR-1..FR-8 remain fully covered by the existing 10 tagged scenarios in `login.feature`. Design review (this cycle) came back **APPROVED WITH CONDITIONS** — 0 Must-fix, 2 Should-fix, 5 Nice-to-have — and this PR closes both Should-fix items. It is a small, targeted hardening/documentation PR, not new feature work: no page objects, drivers, or scenarios were added or changed.
 
 **PRD:** https://epam-team-en32bjvm.atlassian.net/wiki/spaces/MFS/pages/13271042/Login+Functionality+for+OrangeHRM+Portal
 **Traceability:** Full SDLC artifacts in `docs/sdlc/` (requirements → architecture → design-review → impl-plan → verification)
@@ -10,46 +10,39 @@ This cycle of the Agentic SDLC pipeline reviewed the OrangeHRM login automation 
 
 ## Changes Made
 
-### Bug fixes (design-review Should-fix)
-- **Loading-indicator race (`@TS_LOG_009`, FR-4):** `LoginPage.isLoadingIndicatorDisplayed()` used to be polled from a separate `Then` step *after* the login click had already returned in the `When` step, so on a fast auth response the spinner could appear and vanish before the assertion started polling — a genuine false-failure race, not just "timing-sensitive." Added `LoginPage.submitAndCaptureLoadingIndicator(username, password)`, which enters credentials, clicks login, and polls for the indicator synchronously within the same call. `LoginSteps` now stores that result and the `Then` step asserts the stored value instead of re-polling. No `Thread.sleep` introduced. Verified with 5 consecutive re-runs of `@TS_LOG_009` — 0 flaky failures.
-- **Credential hardcoding (`@TS_LOG_002/005/006/007`):** these scenarios hardcoded the literal valid username/password directly in Gherkin step text, duplicating the values already centralized in `config.properties`. Added ConfigReader-backed step definitions (mirroring the existing pattern for other scenarios) and reworded the four scenarios to route through them. Genuinely-invalid literals (e.g. wrong password, empty strings) were left as-is, since those are intentionally not real credentials.
+### T1 — Guarded teardown screenshot capture (`Hooks.java`)
+`Hooks.tearDown`'s failure-screenshot capture (`((TakesScreenshot) driver).getScreenshotAs(...)`) was previously unguarded: if the driver session was already crashed/invalid at teardown time, the call could throw and propagate out of `@After` *before* `DriverManager.quitDriver()` ran — leaking the session and potentially obscuring the original scenario failure in the report.
 
-### Hardening / cleanup
-- `BasePage.isDisplayed()` now catches `TimeoutException` specifically instead of generic `Exception`, so real driver/session errors are no longer silently masked as "element not found."
-- Removed the unused `pom.xml` `<env>qa</env>` property and its Surefire `systemPropertyVariables` passthrough — no code ever read it.
-- Added a comment above `valid.username`/`valid.password` in `config.properties` documenting that these are OrangeHRM's public demo values and must be overridden via `-D` system properties / CI secrets before pointing this framework at any non-public environment.
-- `LoginSteps` now fetches `WebDriver` once via `DriverManager.getDriver()` and shares it across the `LoginPage`/`DashboardPage`/`ResetPasswordPage` constructors instead of re-fetching per call.
+Fixed by:
+- Wrapping the screenshot-capture call in its own try/catch, catching `WebDriverException` specifically, and logging a warning (scenario name + exception) instead of propagating.
+- Moving `DriverManager.quitDriver()` into an outer `finally` block, so it now executes unconditionally on every path through `tearDown` — scenario passed, scenario failed with a successful screenshot, or scenario failed with a screenshot-capture exception.
 
-### Repo hygiene (carried forward, required for `main` to build)
-- `pom.xml` on `main` was pointing at an unrelated, incompatible project scaffold (wrong `groupId`/`artifactId`, JUnit Jupiter, Selenium 4.25.0, no Cucumber at all — `main` never received the fix that was already pushed to `feature/login-coverage-improvements`). This PR carries that corrected `pom.xml` (Java 11, Selenium 4.27.0, Cucumber 7.20.1, JUnit 4.13.2, WebDriverManager 5.9.2, SLF4J 2.0.16) so `main` actually builds this framework.
+### T2 — Documented demo-credential exception (`config.properties`)
+`config.properties` ships plaintext demo credentials (`valid.username=Admin` / `valid.password=admin123`) — OrangeHRM's own public demo values, not a real secret, but previously undocumented as an intentional decision. Added an explicit comment block (in addition to the pre-existing override-mechanism comment) stating this is a deliberate, scoped, time-boxed exception: accepted only while the target remains OrangeHRM's public `opensource-demo` instance, and must be revisited (values removed, supplied only via existing `-D` overrides / CI secret injection) before this framework is ever pointed at a non-public or production environment. No credential values were changed or removed — `ConfigReader.get()` already gives a non-blank `-D` system property priority over the file, so no code change is needed to externalize later.
 
-### Deferred
-- CI chrome-leg / OWASP Dependency-Check plugin work (impl-plan T7): infra work, not framework code — out of scope for this pass, left as a follow-up.
-
-### SDLC Artifacts
-- `docs/sdlc/requirements.md` — extracted from Confluence PRD (US-AUTH-001)
-- `docs/sdlc/architecture.md` — framework architecture, gaps explicitly marked
-- `docs/sdlc/design-review.md` — verdict: APPROVED WITH CONDITIONS (0 must-fix, 4 should-fix, 5 nice-to-have)
-- `docs/sdlc/impl-plan.md` — 8-task breakdown, ~4h estimate
-- `docs/sdlc/verification-report.md` — verdict: PASS WITH LIMITATIONS
+### SDLC artifacts (this cycle)
+- `docs/sdlc/requirements.md` — re-extracted/re-validated against the current Confluence PRD
+- `docs/sdlc/architecture.md` — re-validated against current codebase
+- `docs/sdlc/design-review.md` — verdict: **APPROVED WITH CONDITIONS** (0 Must-fix, 2 Should-fix, 5 Nice-to-have)
+- `docs/sdlc/impl-plan.md` — 3-task plan (T1, T2, T3-verification)
+- `docs/sdlc/verification-report.md` — verdict: **PASS**
 
 ---
 
 ## Test Evidence
 
-Independently re-run by the verification stage (not reused from implementation):
+Stage 6 verification ran `mvn clean test` against the live OrangeHRM public demo site (`https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`) using a real, headed Chrome browser (WebDriverManager-resolved):
 
 | Command | Result |
 |---|---|
-| `mvn clean compile test-compile` | BUILD SUCCESS |
-| `mvn clean test` (Chrome, default) | 10/10 scenarios, 32/32 steps passed |
-| `mvn clean test -Dbrowser=firefox` | 10/10 scenarios, 32/32 steps passed |
-| `@TS_LOG_009` × 5 consecutive runs | 5/5 passed, 0 flaky failures |
-| `mvn clean compile test-compile` (this branch, rebased onto corrected `main`) | BUILD SUCCESS |
+| `mvn clean test` (default Chrome, headed, live network) | **BUILD SUCCESS** — 10/10 scenarios passed, 32/32 steps passed, 0 failures, 0 errors, 0 skipped (~53s total Maven wall time) |
 
-No leaked browser/driver processes observed after either run. No credential values found in console output or Cucumber JSON report.
+- All 8 functional requirements (FR-1..FR-8) have at least one passing tagged scenario (`@TS_LOG_001`–`@TS_LOG_010`) — no regression against `architecture.md` §7's traceability table.
+- T1 was statically confirmed correct by code review (try/catch around screenshot capture, `quitDriver()` in `finally`); since all 10 scenarios passed live, the `scenario.isFailed()` branch itself was not exercised in this run — a limitation of an all-passing run, not a defect (see Known Limitations).
+- T2 was confirmed present, explicit, and correctly scoped in `config.properties` (lines 20-35).
+- No credential value (`admin123`) was found anywhere in console output or in any generated report (`cucumber-html-report.html`, `cucumber.json`, `cucumber-junit.xml`); `Admin` appears only as scenario-title text, never as a logged credential value.
 
-**Not verified** (explicitly, not assumed passing): Edge browser, network throttling, cross-browser matrix beyond Chrome, load/performance testing.
+Full detail in `docs/sdlc/verification-report.md`.
 
 ---
 
@@ -57,33 +50,37 @@ No leaked browser/driver processes observed after either run. No credential valu
 
 | Requirement | Status |
 |---|---|
-| FR-1..FR-8 (login UI, masking, auth, loading indicator, invalid creds, required-field validation, forgot-password nav) | Covered — FR-4's flakiness fixed this cycle |
-| NFR-1..NFR-5 (compatibility, availability, performance, security beyond masking, accessibility) | Not covered — explicitly out of scope per `requirements.md`, no dedicated test/check exists |
-
-Full detail in `docs/sdlc/architecture.md` §7 and `docs/sdlc/verification-report.md`.
+| FR-1..FR-8 (login UI controls, password masking, valid login, loading indicator, invalid credentials, required-field validation, forgot-password nav) | Covered — all 10 tagged scenarios passed this cycle, no regression |
+| NFR-1 (browser compatibility), NFR-2 (JS required) | Partially covered (real Chrome/Firefox/Edge engines exist in `DriverManager`; only Chrome exercised this run) |
+| NFR-3..NFR-6 (availability, performance, security beyond masking, accessibility) | Not covered — explicitly out of scope per `requirements.md`, unchanged this cycle |
 
 ---
 
 ## Known Limitations
-- No Edge/Safari/mobile browser coverage.
-- No parallel execution (thread-local driver storage makes it *safe*, but nothing configures it).
-- NFR-1..NFR-5 have no dedicated automated coverage (unchanged from requirements/design review — not part of this cycle's scope).
-- Credentials remain a plaintext, checked-in demo value — acceptable for the public OrangeHRM demo target, flagged for externalization if this framework ever points at a non-public environment.
+(Carried forward from `docs/sdlc/design-review.md` §5 Nice-to-have / §4 Risk Assessment — genuinely still open, not affected by this PR)
+
+- No `System.getenv(...)` lookup in `ConfigReader.get()` — only `-D` system properties are read, so a CI system relying solely on OS env vars (not `-D` flags) has no override path today.
+- No automated dependency-vulnerability scan (e.g. OWASP Dependency-Check) configured in the Maven build.
+- No CI matrix or scheduled job exercising `-Dbrowser=firefox` / `-Dbrowser=edge` — those `DriverManager` code paths exist and are structurally sound but are not verified in CI, only Chrome is.
+- FR-4's loading-indicator check still uses a short, fixed 3-second poll window (the previous cross-step-boundary race is already fixed in the current codebase, prior to this cycle) — no flakiness observed this run; would only warrant a secondary signal (e.g. submit-button `disabled` state) if flakiness is observed in real CI.
+- No lightweight retry for a single transient network/server hiccup (NFR-3 resilience) — not required by `requirements.md`.
+- The failure-screenshot capture path (including this PR's new catch block) was not exercised live this cycle, since all 10 scenarios passed; correctness was established via static code review only.
 
 ---
 
 ## Reviewer Checklist
-- [ ] `@TS_LOG_009` fix genuinely closes the step-boundary race (see `LoginPage.submitAndCaptureLoadingIndicator`)
-- [ ] No literal credentials remain in `@TS_LOG_002/005/006/007` step text
-- [ ] `BasePage.isDisplayed()` exception narrowing doesn't change intended negative-path behavior
-- [ ] `pom.xml` correction is acceptable as part of this PR (see "Repo hygiene" above)
-- [ ] SDLC artifacts in `docs/sdlc/` are clear and traceable
+- [ ] `Hooks.tearDown` — confirm no code path can exit without `DriverManager.quitDriver()` having run (try/catch + finally structure)
+- [ ] `Hooks.tearDown` — confirm the new catch block only swallows `WebDriverException` from screenshot capture, and still logs a warning rather than silently suppressing it
+- [ ] `config.properties` — confirm no real/non-demo credential value was introduced, and `valid.username`/`valid.password` values are unchanged
+- [ ] `config.properties` — confirm the new comment clearly scopes the exception to the public demo target and names the required action before non-demo reuse
+- [ ] Test evidence (10/10 scenarios, 32/32 steps, `mvn clean test`) matches `docs/sdlc/verification-report.md`
+- [ ] SDLC artifacts in `docs/sdlc/` are clear, internally consistent, and traceable to this PR's actual diff
 
 ---
 
 ## Related
 - **PRD:** Confluence page 13271042 (`MFS` space) — linked in `docs/sdlc/requirements.md`
-- **Pipeline:** `sdlc_orchestrator` → requirements → architecture → design-review → planning → implementation → verification → this PR
-
+- **Prior PRs:** #1, #2, #3 (original framework implementation and merge)
+- **Pipeline:** requirements → architecture → design-review → planning → implementation → verification → this PR
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
