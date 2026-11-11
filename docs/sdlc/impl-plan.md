@@ -1,110 +1,165 @@
 # Implementation Plan
 
-**Feature:** OrangeHRM Login Automation Framework
-**Source Documents:** `docs/sdlc/architecture.md` (this cycle, 2026-09-28), `docs/sdlc/design-review.md` (this cycle, 2026-09-28 — **Verdict: APPROVED WITH CONDITIONS**, 0 Must-fix, 2 Should-fix, 5 Nice-to-have), `docs/sdlc/requirements.md` (this cycle, 2026-09-28)
-**Date:** 2026-09-28
-**Agent:** planning-agent
-**Task Count:** 3
-**Complexity Summary:** 2 Low, 1 Low (verification)
-**Total Effort Estimate:** ~1 hour (30 min + 15 min + 15 min)
+**Feature:** Login Functionality for OrangeHRM Portal (US-AUTH-001)
+**Date:** 2026-11-11
+**Agent:** planning-agent (SDLC Stage 4, run 3)
+**Sources:** `docs/sdlc/architecture.md` (human-approved), `docs/sdlc/design-review.md` (APPROVED WITH CONDITIONS, accepted by human)
+**Existing code reviewed:** `DriverManager`, `Hooks`, `ConfigReader`, `BasePage`, `LoginPage`, `DashboardPage`, `ResetPasswordPage`, `LoginSteps`, `TestRunner`, `login.feature`, `config.properties`, `pom.xml` (all under `src/test/**` and root).
 
-> Scope note: this is a re-validation cycle, not greenfield work. `docs/sdlc/design-review.md` (this cycle) confirms **FR-1..FR-8 are already fully implemented and covered** by the 10 tagged scenarios in `login.feature` (`@TS_LOG_001`–`@TS_LOG_010`) — see its §2 Requirements Coverage table and `architecture.md` §7 traceability table, both independently verified against source this cycle. Four issues raised in the *prior* (2026-09-27) design-review cycle — the FR-4 step-boundary race, `BasePage.isDisplayed()` catching overly broad `Exception`, the dead `<env>qa</env>` Maven property, and per-Page-Object independent driver fetches — are **already resolved in the current codebase** (design-review.md §1, §7) and are **not** re-planned here. This plan's actual scope is narrow:
-> 1. Implement the 2 Should-fix items from this cycle's design-review (Hooks.tearDown screenshot guard; documented credential exception).
-> 2. Task a Stage 6 verification pass confirming FR-1..FR-8 coverage holds (no new feature code — verification only).
-> 3. Log the 5 Nice-to-have items as backlog, explicitly out of scope this cycle.
->
-> No new page objects, drivers, scenarios, or net-new feature work is planned. No source code is modified by this planning stage itself — code changes described below are deliverables for the *next* (implementation) stage to execute against this plan.
+## 1. Context and Summary
 
----
+The framework (Selenium 4.27 / Cucumber 7.20 / JUnit 4 / Maven, POM) already exists with 10 scenarios (TS_LOG_001..010), `pageLoadTimeout` wired in `DriverManager`, explicit waits in `BasePage`, failure screenshots in `Hooks`, reports via the runner plugins, and test data in `config.properties`. Per the review this plan therefore schedules **corrective and verification work only**: no new framework, no POM rewrite, no stack change (JUnit 5 migration is not planned).
 
-## 1. Task Breakdown
+| Metric | Value |
+|---|---|
+| Tasks | 10 (3 must-fix, 4 should-fix, 1 docs, 2 validation/gate) |
+| Complexity | 5 Low, 5 Medium, 0 High |
+| Total effort | about 11.5 hours |
 
-| ID | Description | Priority | Complexity | Effort Estimate | Dependencies | Deliverables | Acceptance Criteria |
-|----|---|---|---|---|---|---|---|
-| **T1** | Guard `Hooks.tearDown`'s failure-screenshot capture with try/catch so a crashed/invalid driver session at teardown cannot throw out of `@After`; log a warning on capture failure; `DriverManager.quitDriver()` must still run unconditionally in all cases (success, capture failure, or no failure) | Should-fix (design-review §5 Should-fix #1 / Risk R1, **Medium** severity) | Low | 20 min | None | Modified `src/test/java/com/orangehrm/hooks/Hooks.java`: `((TakesScreenshot) driver).getScreenshotAs(...)` call wrapped in try/catch inside `tearDown`; catch block logs a warning (scenario name + exception) via the existing SLF4J `LOGGER`; `DriverManager.quitDriver()` moved so it is reached regardless of whether the screenshot try block succeeds, throws, or is skipped (e.g. via `finally`, or by placing it after the guarded block unconditionally) | (1) Code review confirms no exception path inside `tearDown` can return/propagate without `DriverManager.quitDriver()` having executed. (2) A forced-throw unit/manual check (e.g. temporarily stub `getScreenshotAs` to throw, or crash the driver mid-scenario) shows the scenario still completes teardown and the driver's `ThreadLocal` is cleared, with a warning logged instead of an uncaught exception. (3) Existing passing behavior unchanged: `@TS_LOG_002`/`@TS_LOG_004` (or any other scenario forced to fail) still attach a screenshot on a healthy driver session exactly as before. |
-| **T2** | Document the plaintext demo-credential exception in `config.properties` as an explicit, time-boxed, scoped condition (not a silent/permanent gap) — record that it is accepted only while the target remains OrangeHRM's public demo instance, and that `ConfigReader.get()`'s existing `-D` override already supports zero-code externalization | Should-fix (design-review §5 Should-fix #2 / Finding §3.1, Risk R2) | Low | 15 min | None | A short, explicit note added to either `README.md` or as an expanded comment block in `src/test/resources/config.properties` (in addition to the existing lines 20-27 comment) stating: (a) this is an accepted, time-boxed exception scoped to the public OrangeHRM demo target, (b) it must be revisited (credentials removed from the file, supplied only via `-Dvalid.username=...`/`-Dvalid.password=...` or CI secret injection) before this framework is ever pointed at a non-public/non-demo environment, (c) no code change is required to make that switch, since `ConfigReader.get()` already gives a non-blank `-D` value priority over the properties file | (1) The note is present, readable, and locatable (grep for "demo" or "exception" in `README.md`/`config.properties` returns the new text). (2) The note explicitly names the scoping condition ("public demo instance only") and the required action before non-demo reuse — not a vague disclaimer. (3) No real/non-demo credential value is introduced anywhere in the note. (4) `config.properties`'s existing `valid.username=Admin`/`valid.password=admin123` values are otherwise left unchanged (this task documents the exception; it does not remove the demo credentials, since the demo target is still in use). |
-| **T3** | Verify FR-1..FR-8 coverage is intact and unregressed after T1/T2 — **verification only, no new feature scenarios**; this is Stage 6's execution, planned here as this cycle's only "coverage" task | Verification (maps to design-review.md §2 Requirements Coverage, already "Covered" for all 8 FRs pre-change) | Low | 15 min | T1, T2 | A recorded `mvn test` run (default Chrome, all 10 scenarios `@TS_LOG_001`–`@TS_LOG_010`) executed after T1/T2 land, with its console/HTML/JSON/JUnit-XML report retained under `target/cucumber-reports/`, confirming no regression against the design-review.md §2 coverage table | (1) `mvn test` exits 0 (per `pom.xml`'s `testFailureIgnore=false`). (2) All 10 scenarios pass, preserving FR-1..FR-8's "Covered" status from design-review.md §2 — this task adds no new scenario and changes no `login.feature` content. (3) `@TS_LOG_002`/any scenario exercising a failure path still produces an attached failure screenshot in the report (confirms T1's guard didn't silently suppress legitimate screenshot capture on a healthy driver). (4) No credential value appears in the report output. |
+## 2. Task Breakdown
 
-**Explicitly out of scope this cycle (backlog, from design-review.md §5 Nice-to-have — not tasked, not built now):**
-| # | Nice-to-have (design-review.md §5) | Disposition |
+Effort in hours. Priority: P1 must-fix, P2 should-fix (pre-merge), P3 supporting.
+
+| ID | Task | Source | Pri | Cplx | Effort | Depends on |
+|---|---|---|---|---|---|---|
+| T-01 | Harden `DriverManager` lifecycle | M-1 | P1 | Med | 1.5 | none |
+| T-02 | Set implicit wait to 0; keep explicit waits only | M-2 | P1 | Low | 1.0 | none |
+| T-03 | Make FR-4 loading-indicator check deterministic and scoped | M-2 | P1 | Med | 1.5 | T-02 |
+| T-04 | Add non-creating `peekDriver()`; use in `Hooks.tearDown` | S-1 | P2 | Low | 0.5 | T-01 |
+| T-05 | Resolve `browser` precedence conflict (pom vs properties) | S-3 | P2 | Low | 0.5 | none |
+| T-06 | `ConfigReader` env-var resolution and non-demo credential guard | S-4 | P2 | Med | 1.5 | none |
+| T-07 | Close FR-3/FR-5 coverage gaps; record FR-1 gap | S-2 | P2 | Med | 1.5 | T-02 |
+| T-08 | Architecture addendum and doc updates | M-1, M-2, S-1..S-4 | P3 | Low | 0.75 | T-01..T-07 |
+| T-09 | Validate on real app, Chrome, headless and slow network | all | P1 | Med | 2.0 | T-01..T-07 |
+| T-10 | Regression gate: static checks and full-suite run | all | P1 | Low | 0.75 | T-09 |
+
+Existing features handled as verification, not new work: `pageLoadTimeout` (`DriverManager.java:80`, `ConfigReader.getPageLoadTimeout`) is verified in T-09; BasePage explicit waits and LoginPage synchronization are kept and only the FR-4 locator is changed (T-03); screenshots/lifecycle logging in `Hooks` are kept, only the driver accessor changes (T-04); test data stays in `config.properties` and the feature file (no new data layer); the reset-link flow (TS_LOG_010) is existing and verified in T-09. Remember Me is not in the PRD or architecture and is not planned.
+
+### Task details
+
+**T-01 Harden DriverManager lifecycle (M-1)**
+Files: `src/test/java/com/orangehrm/driver/DriverManager.java`.
+- `quitDriver()` (lines 88-95): wrap `driver.quit()` in `try { } finally { DRIVER_THREAD_LOCAL.remove(); }`; log (do not rethrow) a `WebDriverException` from quit.
+- `initDriver()`: after the browser object is created (line 75 and equivalents), wrap lines 79-83 in `try/catch (RuntimeException e)`; on failure call `driver.quit()` (guarded) and rethrow; set the ThreadLocal only on success.
+Acceptance: (a) code review shows `remove()` in a `finally`; (b) a temporary run with an invalid `-Dpage.load.timeout=abc` or forced exception after creation leaves no `chromedriver`/`chrome` process from that run (check with process list) and the next scenario gets a fresh driver; (c) `mvn test-compile` passes.
+
+**T-02 Implicit wait to 0 (M-2)**
+Files: `DriverManager.java:79`, `src/test/resources/config.properties` (`implicit.wait=0`), `ConfigReader` (keep `getImplicitWait()`, default 0).
+- Prefer removing the `implicitlyWait` call entirely and deleting the `implicit.wait` key and getter if unused elsewhere (grep first); otherwise keep the key at 0 with a comment.
+Acceptance: no non-zero implicit wait is applied (grep shows no `implicitlyWait(` with a configurable positive default); TS_LOG_002/003/004-006 negative checks (`isDisplayed` false path) complete in no more than explicit-wait time (record before/after durations in T-09).
+
+**T-03 Deterministic FR-4 check (M-2)**
+Files: `src/test/java/com/orangehrm/pages/LoginPage.java` (locator line 20, `isLoadingIndicatorDisplayed` ~146-148, `submitAndCaptureLoadingIndicator`), `LoginSteps.java` (TS_LOG_009 step), `login.feature` (TS_LOG_009 tag).
+- Scope the loader locator to the login form / submit button (for example `.oxd-form-loader` inside `form`/`button[type=submit]`), not the global `.oxd-loading-spinner`.
+- Poll for presence with a short explicit wait (FluentWait with small polling interval) started immediately after click; return false instead of throwing.
+- Tag TS_LOG_009 `@timing` (best-effort) so it can be excluded with `-Dcucumber.filter.tags="not @timing"`; the architecture records this as the accepted FR-4 approach.
+Acceptance: locator no longer matches dashboard-level loaders (inspect DOM on app in T-09); TS_LOG_009 passes in 3 consecutive live runs or is documented as best-effort with the tag exclusion working (`mvn test -Dcucumber.filter.tags="not @timing"` runs 9 scenarios).
+
+**T-04 Non-creating driver accessor (S-1)**
+Files: `DriverManager.java` (add `public static WebDriver peekDriver()` returning `DRIVER_THREAD_LOCAL.get()` without init), `Hooks.java:132` (use `peekDriver()`; null-safe).
+Acceptance: when `initDriver` is forced to fail, `@After` does not start a second browser (log shows exactly one "Initializing WebDriver"); `tearDown` still calls `quitDriver()` in `finally`; original failure is not masked.
+
+**T-05 Browser precedence (S-3)**
+Files: `pom.xml` (property `<browser>` ~line 30, Surefire `systemPropertyVariables` ~line 103), `config.properties`.
+- Remove the pom default and pass-through of `browser` so `config.properties` is the default and `-Dbrowser=` (forwarded by Maven to Surefire) still overrides. Leave the other pom properties untouched.
+Acceptance: setting `browser=` in `config.properties` changes the browser under `mvn test`; `-Dbrowser=edge` overrides it (verify via the "Initializing WebDriver for browser" log line).
+
+**T-06 Env-var resolution and credential guard (S-4, A-1)**
+Files: `src/test/java/com/orangehrm/config/ConfigReader.java:49-59`, `config.properties` (comment only), `ConfigReaderTest` is not added (no unit test layer exists; verify via run).
+- Resolution order in `get`: non-empty `-Dkey`, then env var `KEY` upper-cased with `.` replaced by `_` (`VALID_PASSWORD`), then file, then default. Non-empty only.
+- Guard: if `valid.password` resolves from the file and `base.url` host is not `opensource-demo.orangehrmlive.com`, throw `IllegalStateException` with a clear message.
+- C-4 (wrapping `getInt` NumberFormatException) is deferred, see section 6.
+Acceptance: `VALID_PASSWORD=x` env var overrides the file value; `-Dbase.url=https://example.test/...` without a supplied password fails fast with the guard message; default run on the demo host is unaffected; no password is logged.
+
+**T-07 Coverage gaps (S-2)**
+Files: `login.feature`, `LoginSteps.java`, `LoginPage.java` (add `submitWithEnterKey()` only), `DashboardPage.java:12`.
+- FR-5 both-invalid: add a Scenario Outline row or new scenario tagged `@TS_LOG_011 @negative` (username and password both invalid, banner "Invalid credentials").
+- FR-3: add `@TS_LOG_012 @positive` for login submitted with Enter; tighten dashboard URL check to `dashboard/index`.
+- FR-1 placeholders and footer: recorded as an **accepted gap** (low value, selector risk on demo site); documented in T-08.
+- Reuse existing steps; no new page objects.
+Acceptance: `login.feature` has 12 scenarios; new ones pass on Chrome against the live app; the traceability table in the architecture addendum names scenario IDs; step definitions contain no locators.
+
+**T-08 Documentation (supports S-2, S-3, S-4, M-1, M-2, S-1)**
+Files: `docs/sdlc/architecture.md` (append "Addendum" only), `config.properties` comments.
+- State the DriverManager contract (quit in `finally`, init cleanup, hooks never create drivers), wait strategy (implicit 0, explicit only, FR-4 best-effort and tag), config precedence (including pom/`-D`/env), credential exception valid only while `base.url` is the public demo host, corrected traceability, and a headless CI note (`-Dheadless=true`; C-5 CI portion).
+Acceptance: addendum contains each of the six points; a reader can find the `-Dcucumber.filter.tags` and `-Dbrowser` usage.
+
+**T-09 Validation on the real app (all)**
+No code changes except defects found (raise as new tasks).
+- Chrome headed: full suite against the live demo; record pass/fail and durations.
+- Chrome headless: `mvn test -Dheadless=true`.
+- Slow network: Chrome DevTools throttling (or OS throttle, for example Slow 3G profile) to confirm `pageLoadTimeout` (30s) and explicit wait (15s) produce a clear `TimeoutException`, not a hang; and that a throttled run still tears down cleanly (no orphan processes).
+- Firefox/Edge: one smoke run each, results recorded; not blocking (NFR-1, unverified in review).
+- Confirm C-2 relevance: note any Chrome/driver incompatibility.
+Acceptance: results table (browser, mode, scenarios passed/total, notes) is produced for Stage 6; zero orphan browser processes after all runs.
+
+**T-10 Regression gate**
+- `grep` shows no `Thread.sleep` and no locators in `stepdefinitions`; `mvn clean test` green; cucumber html/json/junit reports present under `target/cucumber-reports`; a deliberately failed scenario still attaches a screenshot.
+Acceptance: all five checks recorded.
+
+## 3. Dependency Table
+
+| Task | Depends on |
+|---|---|
+| T-01, T-02, T-05, T-06 | none |
+| T-03 | T-02 |
+| T-04 | T-01 |
+| T-07 | T-02 |
+| T-08 | T-01..T-07 |
+| T-09 | T-01..T-07 |
+| T-10 | T-09 |
+
+No cycles (graph is a DAG; critical path T-01 -> T-04 -> T-09 -> T-10 or T-02 -> T-03/T-07 -> T-09 -> T-10).
+
+## 4. Phased Execution Order
+
+1. **Foundation (config and driver):** T-01, T-02, T-05, T-06 (must-fix first: T-01, T-02).
+2. **Framework:** T-04, T-03.
+3. **Tests:** T-07.
+4. **Integration and docs:** T-08.
+5. **Validation:** T-09, T-10.
+
+## 5. Design-Review Condition Coverage and Risk Mapping
+
+| Review item | Task | Risk |
 |---|---|---|
-| N1 | Add `System.getenv(key)` lookup in `ConfigReader.get()` for OS-env-var CI override support | Backlog — no CI env-var-only system currently in use; revisit if one is adopted |
-| N2 | Add a dependency-vulnerability scan (OWASP Dependency-Check or equivalent) to the Maven build | Backlog — current dependency versions verified current in design-review.md §3.8; no known CVE flagged |
-| N3 | Add a CI matrix leg or scheduled job exercising `-Dbrowser=firefox`/`-Dbrowser=edge` | Backlog — `DriverManager` code paths exist and are structurally sound; only the CI *verification* of non-default browsers is missing (Risk R4, Low severity) |
-| N4 | Add a lightweight retry for a single transient network/server hiccup (NFR-3 resilience) | Backlog — not required by requirements.md; NFR-3 is explicitly out of scope per requirements.md |
-| N5 | Strengthen `isLoadingIndicatorDisplayed()` with a secondary signal (e.g. submit-button `disabled` state) if FR-4 flakiness is observed in real CI | Backlog — conditional on observed flakiness (Risk R3, Low-Medium); no such flakiness reported yet since this cycle's step-boundary-race fix |
+| M-1 quit/ThreadLocal in finally; init-failure orphan | T-01 | RK-1, RK-2 |
+| M-2 implicit vs explicit; FR-4 observation | T-02, T-03 | RK-3 |
+| S-1 teardown relaunch | T-04 | RK-5 |
+| S-2 coverage overstated | T-07 (add), T-08 (record FR-1 gap) | RK-7 |
+| S-3 browser precedence | T-05, T-08 | n/a |
+| S-4 credentials exception and env vars (A-1) | T-06, T-08 | RK-6 |
+| Condition 3: credential exception only for public demo host | T-06 (guard), T-08 | RK-6 |
+| R-1 demo site availability (accepted) | T-09 clear timeouts; no retries added | RK-4 |
+| RK-8 tool versions | T-09 Chrome check | RK-8 |
+| RK-9 selector change | locators stay centralised in pages (T-03 scoped) | RK-9 |
 
----
+## 6. Deferred (Consider items, not scheduled; none blocks merge)
 
-## 2. Dependency Table / Order
-
-| Task | Depends On | Reason |
+| ID | Item | Reason |
 |---|---|---|
-| T1 | None | Isolated change to `Hooks.java` only |
-| T2 | None | Isolated change to `README.md`/`config.properties` comment only; no shared file with T1 |
-| T3 | T1, T2 | Final regression/verification must run against the completed change set from both Should-fix tasks |
+| C-1 | Remove `--remote-allow-origins=*` | Revisit only if T-09 shows current Chrome works without it |
+| C-2 | Upgrade Selenium/WebDriverManager, drop WDM | Do only if T-09 finds a Chrome incompatibility |
+| C-3 | `<scope>test</scope>` for pom dependencies | Cosmetic |
+| C-4 | `ConfigReader.getInt` message, blank `-D` handling | Low value |
+| C-5 | Page source/URL on failure; CI workflow file | Headless CI note is in T-08; workflow itself out of scope |
+| C-6 | `DashboardPage` TimeoutException readability | Cosmetic |
 
-```
-T1 ──┐
-     ├──▶ T3
-T2 ──┘
-```
+## 7. Success Criteria and Traceability
 
-No cycles. T1 and T2 touch disjoint files (`Hooks.java` vs. `README.md`/`config.properties`) and can proceed in parallel; T3 is the single convergence point.
+- Both must-fix items implemented and verified (T-01, T-02, T-03, T-09).
+- S-1..S-4 implemented or recorded (T-04..T-08).
+- Full suite (12 scenarios, or 11 when `@timing` is excluded) passes on Chrome; reports generated; failures carry a screenshot.
+- No `Thread.sleep`, no selectors in steps, no new dependencies, no non-demo secrets.
 
----
+| Requirement | Tasks |
+|---|---|
+| FR-1 | T-07 (gap recorded), T-09 |
+| FR-2, FR-6, FR-7, FR-8 | existing scenarios, verified in T-09 |
+| FR-3 | T-07 |
+| FR-4 | T-03 |
+| FR-5 | T-07 |
+| NFR-1 | T-05, T-09 |
+| NFR-3 | T-09 (timeouts) |
 
-## 3. Phased Execution Order
-
-1. **Phase 1 — Should-fix remediation (parallel-safe):** T1 (screenshot-capture guard in `Hooks.tearDown`) and T2 (documented credential exception) — independent files, no merge conflicts, can be implemented in either order or concurrently.
-2. **Phase 2 — Verification (Stage 6):** T3 — full `mvn test` regression across all 10 `login.feature` scenarios, confirming FR-1..FR-8 remain "Covered" per design-review.md §2 and that neither Should-fix change introduced a regression.
-
-No further phases are planned this cycle. Nice-to-have items N1–N5 remain backlog per §1 above and are not scheduled into any phase.
-
----
-
-## 4. Design-Review Condition Coverage
-
-| Design-Review Item | Type | Plan Task | Disposition |
-|---|---|---|---|
-| Should-fix #1 — unguarded screenshot capture in `Hooks.tearDown` (design-review.md §3.4, §5, Risk R1) | Should-fix | **T1** | Fixed — try/catch guard added; `DriverManager.quitDriver()` guaranteed to run |
-| Should-fix #2 — plaintext demo credentials in `config.properties` with no tracked exception (design-review.md §3.1, §5, Risk R2) | Should-fix | **T2** | Documented/tracked as an explicit, time-boxed, scoped exception — per design-review.md §6, this is acceptable to close via documentation, not a code fix, while the target remains the public OrangeHRM demo instance |
-| FR-1..FR-8 requirements coverage (design-review.md §2 — all "Covered") | Verification | **T3** | Re-verified, not re-implemented — no Must-fix or coverage gap exists against any FR |
-| Nice-to-have #1–#5 (design-review.md §5) | Nice-to-have | *(none — backlog)* | Explicitly deferred; see §1 backlog table above |
-
-Both Should-fix items from this cycle's `design-review.md` are accounted for above; none dropped silently. No Must-fix items exist this cycle (design-review.md §5: "0 critical").
-
----
-
-## 5. Risk Mitigation Mapping
-
-(Source: `design-review.md` §4 Risk Assessment table)
-
-| Risk | Severity | Mitigation Task | Notes |
-|---|---|---|---|
-| R1: Unguarded screenshot capture throws on a crashed driver session, potentially leaking the session and masking the original failure | Medium | **T1** | Direct fix — try/catch + logged warning + guaranteed `quitDriver()` |
-| R2: Plaintext demo credential pattern copy-pasted into a fork/reuse against a non-public environment | Medium (Low today, High if reused) | **T2** | Mitigated via explicit documentation of scope/precondition; does not eliminate the risk of future misuse but ensures it is not a *silent* gap, per design-review.md §6 |
-| R3: FR-4's 3-second loading-indicator poll window remains inherently timing-sensitive on a slow CI runner | Low-Medium | Not planned (backlog N5) | No observed flakiness this cycle; monitor per design-review.md's own recommendation — revisit only if flakiness is observed |
-| R4: No CI job exercises Firefox/Edge, so a latent bug in those `DriverManager` branches would go undetected | Low | Not planned (backlog N3) | Code paths exist and are structurally verified by design-review.md §3.6; CI verification gap only |
-| R5: No automated dependency-vulnerability scanning configured | Low | Not planned (backlog N2) | Current dependency versions independently verified current (design-review.md §3.8) |
-| R6: No health-check/availability precondition (NFR-3); a down app server surfaces only as a generic `TimeoutException` | Informational | Not planned | Explicitly out of scope per requirements.md (NFR-3 has no stated SLA) |
-
-Only R1 and R2 (the two Medium-severity, Should-fix-linked risks) are actively mitigated this cycle, matching design-review.md's own approval conditions. R3–R6 are Low/Informational and correctly left as backlog or out-of-scope, consistent with design-review.md §6: "No condition requires re-architecting the framework... none of those are mandated by requirements.md."
-
----
-
-## 6. Success Criteria and Traceability
-
-**Success criteria this cycle:**
-- `Hooks.tearDown` cannot throw an uncaught exception originating from screenshot capture; `DriverManager.quitDriver()` executes on every code path through `tearDown` (T1).
-- The plaintext demo-credential exception in `config.properties` is documented as an explicit, scoped, time-boxed condition — no longer a silent/undocumented gap (T2).
-- `mvn test` runs all 10 scenarios in `login.feature` (`@TS_LOG_001`–`@TS_LOG_010`) to completion with exit code 0 after T1/T2 land, with no regression to any FR-1..FR-8 scenario (T3).
-- Both design-review.md Should-fix conditions are closed (T1 fixed in code, T2 closed via documentation per design-review.md §6's own allowance) — zero Should-fix items carried forward silently.
-- No new page objects, drivers, scenarios, or `login.feature` content are introduced — this cycle's scope is strictly the 2 Should-fix items plus verification, per the planning-agent instruction for this cycle.
-
-**Traceability:**
-- **Requirements:** `docs/sdlc/requirements.md` (FR-1..FR-8, NFR-1..NFR-6, US-AUTH-001) — all FR-1..FR-8 already "Covered" per architecture.md §7 and design-review.md §2; unaffected by T1/T2; reconfirmed by T3.
-- **Architecture:** `docs/sdlc/architecture.md` (this cycle, 2026-09-28) — §3.4/§5.7 describe the current (pre-fix) `Hooks.tearDown` screenshot behavior that T1 hardens; §5.5 describes the current (pre-documentation) credential-handling behavior that T2 documents.
-- **Design Review:** `docs/sdlc/design-review.md` (this cycle, 2026-09-28 — APPROVED WITH CONDITIONS) — §5 Should-fix #1 → T1; §5 Should-fix #2 → T2; §2 Requirements Coverage table → T3; §5 Nice-to-have #1-5 → backlog (§1 of this document).
-- **Code paths this plan touches:** `src/test/java/com/orangehrm/hooks/Hooks.java` (T1); `README.md` and/or `src/test/resources/config.properties` (T2, comment/doc only — no credential value changes). No other source file is in scope this cycle.
-- **Next Stage:** Implementation of T1/T2 against this plan, then Stage 6 verification (T3) per this repo's `docs/sdlc/verification-report.md` conventions.
+**Validation performed:** every architecture component is either covered by a task or marked existing/verified; all must-fix and should-fix items are mapped; the dependency graph is acyclic; order is foundation, framework, tests, integration, validation; acceptance criteria are observable; effort total 11.5 hours is proportionate to the scope.
