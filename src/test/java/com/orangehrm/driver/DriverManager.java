@@ -3,6 +3,7 @@ package com.orangehrm.driver;
 import com.orangehrm.config.ConfigReader;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.edge.EdgeDriver;
@@ -76,21 +77,52 @@ public final class DriverManager {
                 break;
         }
 
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(config.getImplicitWait()));
-        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(config.getPageLoadTimeout()));
-        if (!config.isHeadless()) {
-            driver.manage().window().maximize();
+        // No implicit wait is applied on purpose: synchronization uses explicit
+        // waits only (BasePage), so "not displayed" checks cost no extra time.
+        try {
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(config.getPageLoadTimeout()));
+            if (!config.isHeadless()) {
+                driver.manage().window().maximize();
+            }
+        } catch (RuntimeException e) {
+            // The browser is already running but not yet registered in the
+            // ThreadLocal, so nothing else would ever quit it: do it here.
+            LOGGER.error("WebDriver configuration failed; quitting the started browser", e);
+            quitQuietly(driver);
+            throw e;
         }
 
         DRIVER_THREAD_LOCAL.set(driver);
+    }
+
+    /**
+     * Returns the current thread's driver without creating one.
+     *
+     * @return the active driver, or {@code null} if none was initialised
+     */
+    public static WebDriver peekDriver() {
+        return DRIVER_THREAD_LOCAL.get();
     }
 
     public static void quitDriver() {
         WebDriver driver = DRIVER_THREAD_LOCAL.get();
         if (driver != null) {
             LOGGER.info("Quitting WebDriver session");
+            try {
+                driver.quit();
+            } catch (WebDriverException e) {
+                LOGGER.warn("WebDriver quit failed", e);
+            } finally {
+                DRIVER_THREAD_LOCAL.remove();
+            }
+        }
+    }
+
+    private static void quitQuietly(WebDriver driver) {
+        try {
             driver.quit();
-            DRIVER_THREAD_LOCAL.remove();
+        } catch (WebDriverException e) {
+            LOGGER.warn("WebDriver quit failed during initialisation cleanup", e);
         }
     }
 }

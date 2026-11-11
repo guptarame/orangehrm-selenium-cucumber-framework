@@ -33,7 +33,9 @@ public class Hooks {
     @After
     public void tearDown(Scenario scenario) {
         try {
-            WebDriver driver = DriverManager.getDriver();
+            // peekDriver() never launches a browser, so a failed setUp cannot
+            // cause a second browser to start during teardown.
+            WebDriver driver = DriverManager.peekDriver();
             if (scenario.isFailed() && driver instanceof TakesScreenshot) {
                 LOGGER.warn("Scenario failed: {} - attaching failure screenshot", scenario.getName());
                 try {
