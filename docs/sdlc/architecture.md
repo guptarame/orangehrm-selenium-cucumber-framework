@@ -137,3 +137,36 @@ Waits: explicit `WebDriverWait` helpers in `BasePage`; no `Thread.sleep()`. A 5s
 - R-3: The loading-indicator check (FR-4) is timing-sensitive as the spinner is brief.
 - R-4: The PRD lists only TS_LOG_001..007 while scenarios cover more behaviours; tags should be reconciled in review.
 - R-5: Confluence PRD was not re-read (see requirements Traceability), so the design reflects the earlier extract.
+
+## Addendum (Stage 5, implementation of impl-plan T-01..T-07)
+
+Records decisions made while resolving the design-review conditions. It does not replace the sections above.
+
+### A.1 DriverManager contract (M-1, S-1)
+- `quitDriver()` always removes the ThreadLocal in a `finally`; a `WebDriverException` from `quit()` is logged, not rethrown.
+- `initDriver()` quits the already-started browser (guarded) and rethrows if post-creation configuration (page-load timeout, maximize) fails, so no orphan browser remains and the ThreadLocal is set only on success.
+- Hooks never create drivers during teardown: `Hooks.tearDown` uses the non-creating `DriverManager.peekDriver()` (null-safe) and still calls `quitDriver()` in `finally`.
+
+### A.2 Wait strategy (M-2, FR-4)
+- Implicit wait is 0 (the `implicitlyWait` call and the `implicit.wait` key/getter were removed). Only explicit waits in `BasePage` are used; `pageLoadTimeout` (30s) and explicit wait (15s) remain configurable.
+- FR-4 (loading indicator) is best-effort: the locator is scoped to the login form/submit button and polled every 50 ms for up to 3 s starting immediately after the click. TS_LOG_009 is tagged `@timing` and can be excluded: `mvn test -Dcucumber.filter.tags="not @timing"`.
+
+### A.3 Configuration precedence (S-3, S-4)
+- Order: non-empty `-Dkey=value`, then environment variable (key upper-cased, `.` to `_`, e.g. `VALID_PASSWORD`), then `config.properties`, then code default.
+- `browser` default lives only in `config.properties` (pom default and pass-through removed). Maven forwards `-D` user properties to Surefire, so `mvn test -Dbrowser=edge` still overrides it.
+
+### A.4 Credential exception (design-review condition 3)
+- The plaintext demo credentials in `config.properties` are valid only while `base.url` host is `opensource-demo.orangehrmlive.com`. `ConfigReader.getValidPassword()` throws `IllegalStateException` if the host differs and no `-Dvalid.password`/`VALID_PASSWORD` override is supplied. Passwords are never logged.
+
+### A.5 Corrected traceability (S-2)
+| Requirement | Scenarios |
+|---|---|
+| FR-3 Successful login | TS_LOG_001 (click), TS_LOG_012 (Enter key); dashboard URL checked as `dashboard/index` |
+| FR-5 Invalid credentials | TS_LOG_002 (bad password), TS_LOG_003 (bad username), TS_LOG_011 (both invalid) |
+| FR-4 Loading indicator | TS_LOG_009 (`@timing`, best-effort) |
+| FR-1 UI elements | TS_LOG_008 covers logo, fields, button, forgot link. Accepted gap: input placeholders and footer are not asserted (low value, selector risk on the demo site) |
+
+The suite now has 12 scenarios (11 when `@timing` is excluded).
+
+### A.6 Headless and CI usage
+Run `mvn test -Dheadless=true` (optionally `-Dbrowser=chrome`) on machines without a display. Supply `VALID_PASSWORD`/`VALID_USERNAME` via CI secrets when targeting anything other than the public demo.
