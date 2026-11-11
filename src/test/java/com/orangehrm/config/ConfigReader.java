@@ -2,6 +2,7 @@ package com.orangehrm.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Properties;
 
 /**
@@ -16,6 +17,7 @@ import java.util.Properties;
 public final class ConfigReader {
 
     private static final String CONFIG_FILE = "config.properties";
+    private static final String DEMO_HOST = "opensource-demo.orangehrmlive.com";
     private static volatile ConfigReader instance;
     private final Properties properties;
 
@@ -43,15 +45,16 @@ public final class ConfigReader {
     }
 
     /**
-     * Returns the property value, giving priority to a matching JVM system
-     * property (-Dkey=value) over the value stored in config.properties.
+     * Returns the property value. Resolution order: non-empty JVM system
+     * property (-Dkey=value), non-empty environment variable (key upper-cased,
+     * dots replaced by underscores, e.g. VALID_PASSWORD), then
+     * config.properties.
      */
     public String get(String key) {
-        String systemProperty = System.getProperty(key);
-        if (systemProperty != null && !systemProperty.trim().isEmpty()) {
-            return systemProperty.trim();
+        String value = resolveOverride(key);
+        if (value == null) {
+            value = properties.getProperty(key);
         }
-        String value = properties.getProperty(key);
         if (value == null) {
             throw new RuntimeException("Missing required configuration property: " + key);
         }
@@ -59,11 +62,24 @@ public final class ConfigReader {
     }
 
     public String get(String key, String defaultValue) {
+        String value = resolveOverride(key);
+        if (value == null) {
+            value = properties.getProperty(key, defaultValue);
+        }
+        return value.trim();
+    }
+
+    /** Returns the non-empty -D or environment override for the key, else null. */
+    private String resolveOverride(String key) {
         String systemProperty = System.getProperty(key);
         if (systemProperty != null && !systemProperty.trim().isEmpty()) {
             return systemProperty.trim();
         }
-        return properties.getProperty(key, defaultValue).trim();
+        String envValue = System.getenv(key.toUpperCase().replace('.', '_'));
+        if (envValue != null && !envValue.trim().isEmpty()) {
+            return envValue.trim();
+        }
+        return null;
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
@@ -86,10 +102,6 @@ public final class ConfigReader {
         return getBoolean("headless", false);
     }
 
-    public int getImplicitWait() {
-        return getInt("implicit.wait", 5);
-    }
-
     public int getExplicitWait() {
         return getInt("explicit.wait", 15);
     }
@@ -102,7 +114,26 @@ public final class ConfigReader {
         return get("valid.username");
     }
 
+    /**
+     * The committed file password is a public demo value. It is only allowed
+     * while base.url targets the public demo host; otherwise the password must
+     * be supplied via -Dvalid.password or the VALID_PASSWORD environment
+     * variable.
+     */
     public String getValidPassword() {
+        if (resolveOverride("valid.password") == null && !isDemoHost(getBaseUrl())) {
+            throw new IllegalStateException("base.url is not the public demo host (" + DEMO_HOST
+                    + "); supply valid.password via -Dvalid.password or the VALID_PASSWORD "
+                    + "environment variable instead of the committed demo value");
+        }
         return get("valid.password");
+    }
+
+    private static boolean isDemoHost(String url) {
+        try {
+            return DEMO_HOST.equalsIgnoreCase(URI.create(url).getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }
