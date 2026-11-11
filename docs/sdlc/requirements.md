@@ -2,7 +2,7 @@
 
 **Feature:** Login Functionality for OrangeHRM Portal
 **Source:** Confluence PRD ([Login Functionality for OrangeHRM Portal](https://epam-team-en32bjvm.atlassian.net/wiki/spaces/MFS/pages/13271042/Login+Functionality+for+OrangeHRM+Portal), page ID 13271042, Story ID US-AUTH-001)
-**Date:** 2026-09-28
+**Date:** 2026-11-11
 **Agent:** requirements-agent
 
 ---
@@ -136,6 +136,7 @@ Not explicitly stated in the source PRD; no "Out of Scope" section is present. B
 - "Modern web browser" is assumed to mean current versions of standard desktop browsers (e.g., Chrome, Firefox, Edge); the PRD does not enumerate a supported-browser list.
 - The dashboard redirect target (`.../dashboard/index`) is assumed to be the single success destination for both Admin and Employee roles, since the PRD references only a "designated dashboard" without describing role-differentiated landing pages.
 - "Invalid credentials" is assumed to be the single error message covering both the wrong-username and wrong-password negative cases, since the PRD's AC3.1 uses the same message text for both.
+- The Confluence page could not be re-read in this run (Atlassian login required, no Confluence MCP available); this document is regenerated from the prior extract of the same page, and any PRD edits made after that extract are not reflected.
 - Open questions for follow-up with the product/business owner:
   - The PRD's Test Scenarios table lists only TS_LOG_001–TS_LOG_007, while its Acceptance Criteria describe additional behaviors (full UI display, loading indicator, forgot-password navigation) without corresponding test IDs — unclear if this is an oversight or an intentional scoping decision.
   - Whether account lockout, rate limiting, or CAPTCHA is planned for a future iteration.
@@ -158,4 +159,5 @@ Not stated as a distinct section in the source PRD; derived here from its Accept
 ## Traceability
 
 - Source: Confluence PRD page — [Login Functionality for OrangeHRM Portal](https://epam-team-en32bjvm.atlassian.net/wiki/spaces/MFS/pages/13271042/Login+Functionality+for+OrangeHRM+Portal) (page ID 13271042, Story ID US-AUTH-001, Epic: Authentication & Access Management)
+- Run note: Run 3 (2026-11-11). The live Confluence page at the URL above was NOT re-read in this run (login-protected, not fetchable from the execution environment). Content derives from the prior extract of this same page (previous version of this file dated 2026-09-28), used as the PRD source of truth with user approval.
 - Next Stage: Architecture
