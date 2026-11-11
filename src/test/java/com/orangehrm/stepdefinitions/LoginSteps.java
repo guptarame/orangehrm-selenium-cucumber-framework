@@ -54,6 +54,14 @@ public class LoginSteps {
         loginPage.login(config.getValidUsername(), config.getValidPassword());
     }
 
+    @When("the user submits valid credentials with the Enter key")
+    public void the_user_submits_valid_credentials_with_the_enter_key() {
+        ConfigReader config = ConfigReader.getInstance();
+        loginPage.enterUsername(config.getValidUsername());
+        loginPage.enterPassword(config.getValidPassword());
+        loginPage.submitWithEnterKey();
+    }
+
     @When("the user logs in with username {string} and a valid password")
     public void the_user_logs_in_with_username_and_a_valid_password(String username) {
         String validPassword = ConfigReader.getInstance().getValidPassword();

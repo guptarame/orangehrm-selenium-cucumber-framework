@@ -72,6 +72,22 @@ public abstract class BasePage {
         }
     }
 
+    /**
+     * Polls for the element's presence in the DOM (not visibility) with a fast
+     * polling interval, so very short-lived elements can be observed.
+     *
+     * @return {@code true} if present within the timeout, otherwise {@code false}
+     */
+    protected boolean isPresent(By locator, Duration timeout, Duration pollingInterval) {
+        try {
+            new WebDriverWait(driver, timeout, pollingInterval)
+                    .until(ExpectedConditions.presenceOfElementLocated(locator));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
+    }
+
     public String getCurrentUrl() {
         return driver.getCurrentUrl();
     }

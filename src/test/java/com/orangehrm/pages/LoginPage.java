@@ -1,8 +1,11 @@
 package com.orangehrm.pages;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+
+import java.time.Duration;
 
 /**
  * Page Object for the OrangeHRM login page
@@ -16,8 +19,12 @@ public class LoginPage extends BasePage {
     private static final By LOGIN_BUTTON = By.cssSelector("button[type='submit']");
     private static final By LOGO_IMAGE = By.cssSelector(".orangehrm-login-branding img");
     private static final By FORGOT_PASSWORD_LINK = By.cssSelector(".orangehrm-login-forgot-header");
-    // Brief loader shown on the submit button while the auth request is in flight.
-    private static final By LOADING_INDICATOR = By.cssSelector(".oxd-form-loader, .oxd-loading-spinner");
+    // Brief loader scoped to the login form / submit button while the auth
+    // request is in flight (not the global spinner used by dashboard widgets).
+    private static final By LOADING_INDICATOR =
+            By.cssSelector("form .oxd-form-loader, form button[type='submit'] .oxd-loading-spinner");
+    private static final Duration LOADING_INDICATOR_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration LOADING_INDICATOR_POLLING = Duration.ofMillis(50);
 
     // Top-level red banner shown for wrong username/password combinations.
     private static final By ERROR_ALERT_MESSAGE = By.cssSelector(".oxd-alert-content-text");
@@ -62,6 +69,11 @@ public class LoginPage extends BasePage {
 
     public void clickLogin() {
         click(LOGIN_BUTTON);
+    }
+
+    /** Submits the login form by pressing Enter in the password field. */
+    public void submitWithEnterKey() {
+        waitForVisible(PASSWORD_INPUT).sendKeys(Keys.ENTER);
     }
 
     public void clickForgotPassword() {
@@ -144,7 +156,7 @@ public class LoginPage extends BasePage {
      * quickly; a false result only means it was not observed in that window.
      */
     public boolean isLoadingIndicatorDisplayed() {
-        return isDisplayed(LOADING_INDICATOR, 3);
+        return isPresent(LOADING_INDICATOR, LOADING_INDICATOR_TIMEOUT, LOADING_INDICATOR_POLLING);
     }
 
     /**

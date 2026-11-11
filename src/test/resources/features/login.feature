@@ -50,7 +50,7 @@ Feature: OrangeHRM Login
   Scenario: All required login controls are displayed
     Then all required login controls should be displayed
 
-  @TS_LOG_009 @ui
+  @TS_LOG_009 @ui @timing
   Scenario: Loading indicator is shown while authentication is in progress
     When the user submits valid credentials
     Then a loading indicator should be displayed during authentication
@@ -59,3 +59,14 @@ Feature: OrangeHRM Login
   Scenario: Forgot password link navigates to the reset password page
     When the user clicks the "Forgot your password?" link
     Then the user should be redirected to the Reset Password page
+
+  @TS_LOG_011 @negative
+  Scenario: Login failure with both invalid username and invalid password
+    When the user submits the login form with username "InvalidUser" and password "wrongpass"
+    Then the user should remain on the login page
+    And the error banner "Invalid credentials" should be displayed
+
+  @TS_LOG_012 @positive
+  Scenario: Successful login submitted with the Enter key
+    When the user submits valid credentials with the Enter key
+    Then the user should be redirected to the Dashboard page
