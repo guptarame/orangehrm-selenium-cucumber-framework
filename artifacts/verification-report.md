@@ -46,6 +46,29 @@ consistently in this environment, so it is reported as a known limitation
 rather than transient flakiness. No action is taken per `code-quality.md`
 scope discipline (fixing it is not a `TASK-001`–`TASK-009` item).
 
+## Addendum — observed `DR-011` environmental failure on a repeat run
+
+A subsequent full-suite run (same command, same environment) also failed
+`@TS_LOG_008` with:
+
+```
+org.openqa.selenium.TimeoutException: timeout: Timed out receiving message from renderer: 28.175
+	at com.orangehrm.pages.BasePage.navigateTo(BasePage.java:96)
+	at com.orangehrm.pages.LoginPage.open(LoginPage.java:63)
+	at com.orangehrm.stepdefinitions.LoginSteps.the_user_is_on_the_orange_hrm_login_page(LoginSteps.java:43)
+```
+
+**Classification: `DR-011` environmental failure**, not an `FR-001` defect.
+The failure is a Selenium `TimeoutException` raised inside `driver.get()`
+itself (the login page never finished rendering), not an
+`IllegalStateException` — the exact distinction `TASK-001`'s note and this
+report's §Classification conventions require. Re-running `@TS_LOG_008` alone
+immediately afterwards passed cleanly (all five steps, including the new
+missing-controls, placeholder, and HTTPS assertions), confirming this was a
+transient live-site/network condition and not a regression introduced by
+`TASK-004`/`TASK-005`/`TASK-006`. Reported here rather than retried-until-green
+and hidden, per `tests.md`'s "report coverage honestly."
+
 ## Classification conventions applied
 
 1. **`DR-011` — environmental failures.** No scenario failed because the
