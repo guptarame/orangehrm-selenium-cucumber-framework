@@ -12,6 +12,8 @@ Feature: OrangeHRM Login
   Scenario: Successful login with valid Admin credentials
     When the user logs in with valid credentials
     Then the user should be redirected to the Dashboard page
+    # NFR-002: post-submit defence-in-depth check - catches a mid-session downgrade.
+    And the current page should be served over HTTPS
 
   @TS_LOG_002 @negative
   Scenario: Login failure with valid username and invalid password
@@ -48,7 +50,13 @@ Feature: OrangeHRM Login
 
   @TS_LOG_008 @ui
   Scenario: All required login controls are displayed
+    # FR-001: logo, both fields, Login button, forgot-password link, footer
+    # copyright, footer social link, and both placeholder values.
     Then all required login controls should be displayed
+    And the Username field placeholder should be "Username"
+    And the Password field placeholder should be "Password"
+    # NFR-002: preventive-guard defence-in-depth check on the pre-submit login page.
+    And the current page should be served over HTTPS
 
   @TS_LOG_009 @ui @timing
   Scenario: Loading indicator is shown while authentication is in progress

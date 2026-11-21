@@ -10,6 +10,8 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.openqa.selenium.WebDriver;
 
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -150,11 +152,25 @@ public class LoginSteps {
         assertEquals("password", loginPage.getPasswordFieldType());
     }
 
+    // FR-001
     @Then("all required login controls should be displayed")
     public void all_required_login_controls_should_be_displayed() {
-        assertTrue("Expected the logo, username field, password field, login button, "
-                        + "and forgot-password link to all be displayed",
-                loginPage.areAllLoginControlsDisplayed());
+        List<String> missingControls = loginPage.findMissingLoginControls();
+        assertTrue("Expected all required login controls to be displayed, but these were missing: "
+                        + missingControls,
+                missingControls.isEmpty());
+    }
+
+    // FR-001
+    @Then("the Username field placeholder should be {string}")
+    public void the_username_field_placeholder_should_be(String expectedPlaceholder) {
+        assertEquals(expectedPlaceholder, loginPage.getUsernamePlaceholder());
+    }
+
+    // FR-001
+    @Then("the Password field placeholder should be {string}")
+    public void the_password_field_placeholder_should_be(String expectedPlaceholder) {
+        assertEquals(expectedPlaceholder, loginPage.getPasswordPlaceholder());
     }
 
     @Then("a loading indicator should be displayed during authentication")
@@ -167,5 +183,21 @@ public class LoginSteps {
     public void the_user_should_be_redirected_to_the_reset_password_page() {
         assertTrue("Expected the Reset Password page to be displayed",
                 resetPasswordPage.isResetPasswordPageDisplayed());
+    }
+
+    /**
+     * NFR-002: executed defence-in-depth HTTPS check (AD-009). This runs
+     * after LoginPage.login() has already typed and POSTed the password, so
+     * it cannot prevent a cleartext submission - that is the preventive
+     * ConfigReader.getBaseUrl() scheme guard's job. This assertion catches an
+     * HTTPS target that redirects or downgrades to http mid-session.
+     * Checks the scheme specifically, not a substring, so a URL carrying
+     * "https" only inside a query parameter would not satisfy it.
+     */
+    @Then("the current page should be served over HTTPS")
+    public void the_current_page_should_be_served_over_https() {
+        String currentUrl = loginPage.getCurrentUrl();
+        assertTrue("Expected the current page URL to use the https scheme, but was: " + currentUrl,
+                currentUrl.regionMatches(true, 0, "https://", 0, "https://".length()));
     }
 }
