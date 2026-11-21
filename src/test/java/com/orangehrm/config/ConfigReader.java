@@ -18,6 +18,8 @@ public final class ConfigReader {
 
     private static final String CONFIG_FILE = "config.properties";
     private static final String DEMO_HOST = "opensource-demo.orangehrmlive.com";
+    private static final String HTTPS_SCHEME = "https";
+    private static final String ALLOW_INSECURE_BASE_URL_KEY = "allow.insecure.base.url";
     private static volatile ConfigReader instance;
     private final Properties properties;
 
@@ -90,8 +92,36 @@ public final class ConfigReader {
         return Integer.parseInt(get(key, String.valueOf(defaultValue)));
     }
 
+    /**
+     * Resolves base.url and fails closed unless its scheme is https (NFR-002).
+     * This check is preventive, running before the browser ever navigates -
+     * the executed scheme assertion in LoginSteps necessarily runs only after
+     * LoginPage.login() has already typed and POSTed the password, so it
+     * cannot by itself stop a cleartext submission. Opt out only via
+     * allow.insecure.base.url for a local, non-TLS sandbox.
+     */
     public String getBaseUrl() {
-        return get("base.url");
+        String baseUrl = get("base.url");
+        if (getBoolean(ALLOW_INSECURE_BASE_URL_KEY, false)) {
+            return baseUrl;
+        }
+        String scheme = resolveScheme(baseUrl);
+        if (!HTTPS_SCHEME.equalsIgnoreCase(scheme)) {
+            String schemeDescription = scheme == null ? "missing or unparseable" : scheme;
+            throw new IllegalStateException("base.url must use the https scheme, but its scheme is "
+                    + schemeDescription + "; set " + ALLOW_INSECURE_BASE_URL_KEY
+                    + "=true to opt out for a local, non-TLS sandbox only");
+        }
+        return baseUrl;
+    }
+
+    /** Returns the URL's scheme, or null for a malformed or scheme-less URL rather than throwing. */
+    private static String resolveScheme(String url) {
+        try {
+            return URI.create(url).getScheme();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String getBrowser() {
