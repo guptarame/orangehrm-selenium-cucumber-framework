@@ -39,24 +39,27 @@ authored here.
 Keep the existing layered Page Object Model architecture and extend it. It
 already satisfies the structural drivers above, and no requirement in
 `artifacts/requirements.md` calls for a new module, a service, or a different
-runner. The architecture is therefore **confirmed as-is, with two additive
+runner. The architecture is therefore **confirmed as-is, with three additive
 extensions** needed to close genuine coverage gaps (see
 [Requirement-to-Component Traceability](#requirement-to-component-traceability)):
 
 1. Extend `LoginPage` with footer and placeholder readers so `FR-001` is fully
-   verified rather than partially verified.
+   verified rather than partially verified (`AD-008`).
 2. Add a transport-scheme assertion so `NFR-002`'s HTTPS clause is verified in
-   the suite rather than only by code review.
+   the suite rather than only by code review (`AD-009`).
+3. Add a preventive HTTPS scheme guard to `ConfigReader.getBaseUrl()` so a
+   credential can never be submitted to a cleartext target in the first place
+   (`AD-010`; added by `DR-001` in the Step 3 design review).
 
-Both extensions land inside existing components. No new layer, dependency, or
-build plugin is introduced.
+All three extensions land inside existing components. No new layer, dependency,
+or build plugin is introduced.
 
 **Layer contract (enforced by `.claude/rules/code-quality.md` and code review):**
 
 | Layer | May depend on | Must never |
 | --- | --- | --- |
 | Feature files | — (declarative Gherkin only) | Contain selectors, URLs, or credentials |
-| Step definitions | Page Objects, `ConfigReader`, `DriverManager` | Call Selenium APIs directly |
+| Step definitions | Page Objects, `ConfigReader`, `DriverManager` | Invoke `WebDriver`/`WebElement`/`By`/wait APIs. A `WebDriver` reference may be held **only** to construct Page Objects (per `DR-009`) |
 | Page Objects | `BasePage`, Selenium, `ConfigReader` | Contain assertions or test data |
 | `BasePage` | Selenium, `ConfigReader` | Know about any specific page |
 | `DriverManager` / `ConfigReader` | Selenium, JDK | Depend on pages or steps |
@@ -149,14 +152,14 @@ graph TD
 
 | ID | Verifying component path | Scenario(s) | Coverage status |
 | --- | --- | --- | --- |
-| `FR-001` | `login.feature` → `LoginSteps.all_required_login_controls_should_be_displayed` → `LoginPage.areAllLoginControlsDisplayed` | `@TS_LOG_008` | **Partial** — logo, both fields, Login button, and forgot-password link are asserted; the footer (copyright + social links) and the two placeholder texts required by `FR-001` are not. Extend `LoginPage` with footer and placeholder readers. See `AD-008`, `OQ-A001`. |
+| `FR-001` | `login.feature` → `LoginSteps.all_required_login_controls_should_be_displayed` → `LoginPage.areAllLoginControlsDisplayed` | `@TS_LOG_008` | **Partial** — logo, both fields, Login button, and forgot-password link are asserted; the footer (copyright + social links) and the two placeholder texts required by `FR-001` are not. Extend `LoginPage` with footer and placeholder readers. See `AD-008`, `OQ-A001`. **May only be reported "Complete" once the copyright element, ≥1 social-link anchor, and both placeholder *values* are asserted** — container/attribute presence alone is not sufficient (`DR-002`). |
 | `FR-002` | `LoginSteps.the_password_field_should_mask_the_entered_characters` → `LoginPage.getPasswordFieldType` | `@TS_LOG_007` | Complete |
 | `FR-003` | `LoginSteps` dashboard step → `LoginPage.login` / `submitWithEnterKey` + `DashboardPage.isDashboardPageDisplayed` | `@TS_LOG_001`, `@TS_LOG_012` | Complete (both submission paths) |
 | `FR-004` | `LoginSteps.the_error_banner_should_be_displayed` → `LoginPage.getErrorBannerText` | `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011` | Complete (all three invalid combinations) |
 | `FR-005` | `LoginSteps` per-field validation steps → `LoginPage.isUsernameRequiredErrorDisplayed` / `isPasswordRequiredErrorDisplayed` | `@TS_LOG_004`, `@TS_LOG_005`, `@TS_LOG_006` | Complete |
 | `FR-006` | `LoginSteps.the_user_should_be_redirected_to_the_reset_password_page` → `ResetPasswordPage` | `@TS_LOG_010` | Complete |
-| `NFR-001` | `LoginSteps.the_user_submits_valid_credentials` → `LoginPage.submitAndCaptureLoadingIndicator` → `BasePage.isPresent` | `@TS_LOG_009` | Complete |
-| `NFR-002` | `ConfigReader.getValidPassword` host guard; `LoginPage.getPasswordFieldType` (never reads the value); generic-banner assertions; absence of credential logging in every component | `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_007`, `@TS_LOG_011` | **Partial** — non-enumeration and no-plaintext-on-screen are verified; the HTTPS transport clause is currently code-review-only, as `artifacts/requirements.md` AC-008 notes. Add a scheme assertion. See `AD-009`, `OQ-A002`. |
+| `NFR-001` | `LoginSteps.the_user_submits_valid_credentials` → `LoginPage.submitAndCaptureLoadingIndicator` → `BasePage.isPresent` | `@TS_LOG_009` | Complete, with a documented proxy — `AC-007` says the indicator is *visible*, while `isPresent` polls DOM **presence**. Presence is an **accepted proxy** for visibility here: the indicator's lifetime is often under 100ms, and visibility polling would trade real reliability for marginal fidelity. Recorded rather than implied, per `DR-004`. |
+| `NFR-002` | `ConfigReader.getValidPassword` host guard + `getBaseUrl` scheme guard (`AD-010`); `LoginPage.getPasswordFieldType` (never reads the value); generic-banner assertions; absence of credential logging in every component | `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_007`, `@TS_LOG_011` | **Partial** — non-enumeration and no-plaintext-on-screen are verified; the HTTPS transport clause is currently code-review-only, as `artifacts/requirements.md` AC-008 notes. Closed by the **preventive** scheme guard in `AD-010` (fails closed before the browser navigates), with `AD-009`'s executed assertion as defence in depth. See `DR-001`, `OQ-A002`. |
 
 No orphans: every component above traces to at least one `FR`/`NFR`, and every
 `FR`/`NFR` traces to at least one component.
@@ -243,9 +246,9 @@ flowchart LR
 | `AD-005` Driver binary provisioning | WebDriverManager 5.9.2 | Resolves and caches the matching driver binary at runtime, so no binary is committed and no manual PATH setup is needed on a dev machine or CI runner. | Needs network access on first run per browser version; adds a third-party dependency in the startup path. |
 | `AD-006` Test structure | Page Object Model with a shared `BasePage` | Isolates OrangeHRM's volatile `oxd-*` selectors to one class per page, so a UI change touches one file. Centralising waits in `BasePage` keeps page classes free of Selenium boilerplate and makes timing behaviour uniform. | Inheritance couples all pages to `BasePage`; it must stay page-agnostic to avoid becoming a dumping ground. |
 | `AD-007` Synchronization | Explicit waits only — **no implicit wait anywhere** | Mixing implicit and explicit waits yields unpredictable compounded timeouts. Explicit-only also makes a negative check (`isDisplayed` returning `false`) cost exactly its own timeout, which matters for `FR-005` and for not-displayed assertions. | Every new interaction must choose its wait deliberately; no global safety net. |
-| `AD-008` `FR-001` completeness | Add footer and placeholder readers to `LoginPage`, asserted from `LoginSteps` | `FR-001` names the footer and both placeholders explicitly; the current control check omits them. Keeping the new locators in `LoginPage` preserves the layer contract. | Footer social links are third-party markup and may be the most brittle locators in the suite; scope them narrowly. |
-| `AD-009` `NFR-002` transport | Assert the login page and post-submit URL use the `https` scheme, read via `BasePage.getCurrentUrl` | Turns the HTTPS clause from a review-time claim into an executed check at near-zero cost, with no new dependency and no proxy. | Verifies the scheme only, not certificate validity or absence of mixed content. Full transport inspection would need a proxy (e.g. BrowserMob) — unjustified for this scope. |
-| `AD-010` Credential handling | Override-first `ConfigReader` plus the demo-host guard on `getValidPassword()` | Lets CI inject real credentials via `-Dvalid.password` or `VALID_PASSWORD` with no code change, while structurally preventing the committed demo password from being fired at a non-public target. | A plaintext demo credential remains in the repository as a documented, scoped exception. |
+| `AD-008` `FR-001` completeness | Add footer and placeholder readers to `LoginPage`, asserted from `LoginSteps`. Assert the footer **copyright element** and **at least one social-link anchor** as distinct controls, and compare **both `placeholder` attribute values** to expected literals passed in as Gherkin step parameters. `LoginPage` returns the collection of *missing* required controls rather than a single short-circuited boolean. | `FR-001` names the footer (copyright + social links) and both placeholders explicitly; the current control check omits them. Container-presence-only would leave `FR-001` effectively uncovered while reporting "Complete" (`DR-002`). Returning the missing-control set makes a failure diagnosable from the report alone and avoids eight stacked 10s timeouts behind one `assertTrue` (`DR-003`). Expected text stays in Gherkin so the layer contract ("Page Objects must never contain test data") holds. | Footer social links are third-party markup and may be the most brittle locators in the suite; scope them narrowly — assert anchor presence, not `href` targets. Placeholder literals couple the suite to the demo site's English UI copy (localisation is out of scope upstream). |
+| `AD-009` `NFR-002` transport (defence in depth) | Assert the login page and post-submit URL use the `https` scheme, read via `BasePage.getCurrentUrl`. **This is not the primary HTTPS control** — see the preventive guard in `AD-010`. | A `Then`-step URL assertion necessarily runs *after* `LoginPage.login()` has already typed and POSTed the password, so it cannot prevent a cleartext submission (`DR-001`). It remains worthwhile for the case it genuinely catches: an HTTPS target that redirects or downgrades to `http` mid-session, which would otherwise pass silently. | Verifies the scheme only, not certificate validity or absence of mixed content. Full transport inspection would need a proxy (e.g. BrowserMob) — unjustified for this scope. |
+| `AD-010` Credential handling | Override-first `ConfigReader`, the demo-host guard on `getValidPassword()`, **and** a preventive scheme guard: `getBaseUrl()` fails closed unless the resolved URL scheme is `https`, gated by an explicit default-`false` opt-out (e.g. `allow.insecure.base.url`) for a deliberate local non-TLS sandbox. | Lets CI inject real credentials via `-Dvalid.password` or `VALID_PASSWORD` with no code change, while structurally preventing the committed demo password from being fired at a non-public target. The scheme guard closes `DR-001`: the host guard compares only the host (so `http://`+demo host passes it), and supplying a `valid.password` override bypasses the host check entirely by design — so the CI path recommended under Deployment had no transport check at all. Failing closed before the browser navigates is the only point at which cleartext submission can be prevented, per `code-quality.md` ("never transmit passwords in plain text", "fail closed on security-relevant errors"). | A plaintext demo credential remains in the repository as a documented, scoped exception. The opt-out is a deliberate escape hatch and must stay default-`false`. **The existing demo-host guard must not be removed, narrowed, or widened — the scheme guard is additive.** |
 | `AD-011` Logging | SLF4J 2.0.16 (`slf4j-simple`) at component boundaries only; **never** log a credential, a field value, or a resolved password | Satisfies `NFR-002`'s no-plaintext-in-logs clause by construction rather than by redaction. Current logging covers browser/headless selection, scenario start/finish, and failure paths only. | Console-only output, no structured log file; sufficient because the Cucumber report is the primary evidence artifact. |
 | `AD-012` Parallelism | `ThreadLocal` driver — parallel-**ready**, parallel execution not enabled | Per-thread isolation costs nothing now and avoids a rewrite later, but no requirement asks for suite speed, and the public demo site should not be hammered with concurrent sessions. | The parallel path is unexercised, so latent cross-scenario coupling would only surface when it is switched on. |
 | `AD-013` Failure evidence | PNG screenshot attached to the Cucumber report on failure, captured via `peekDriver()` | A screenshot at the moment of failure is the fastest route to a root cause for UI assertions. `peekDriver()` never creates a driver, so a failed `@Before` cannot spawn a second browser during teardown. | Screenshots inflate report size; a screenshot could in principle capture on-screen input, which is why `FR-002` masking is itself verified. |
@@ -266,7 +269,7 @@ flowchart LR
 | Skill | `sdlc-traceability` | Stable `FR-###`/`NFR-###`/`DR-###`/`TASK-###` ID discipline across artifacts. |
 | Skill | `design-review`, `plan-implementation`, `implement-task`, `code-review`, `verify-implementation`, `create-pr` | Downstream step workflows consuming this document. |
 | Rule | `.claude/rules/code-quality.md` (`**/*.java`) | OWASP-safe, DRY, clear-code standards; the login-specific guidance underpins `NFR-002` and `AD-011`. |
-| Rule | `.claude/rules/tests.md` | Coverage, structure, and determinism standards. Note: its path patterns do not currently match `src/test/java/**`, so it does not auto-apply here. |
+| Rule | `.claude/rules/tests.md` | Coverage, structure, and determinism standards. **Auto-applies here** — its frontmatter includes `**/*.java`, which matches every Java file in this repository (`DR-005`; an earlier note in this document and in `.claude/CLAUDE.md` wrongly said it does not). **Precedence (`DR-006`):** its coverage, determinism, and quality clauses bind in full; its unit-test/mocking *structure* clause is satisfied by the Gherkin + Page Object layering, and **no unit-test or mock layer is in scope for `US-AUTH-002`** unless an approved `TASK-###` introduces one. |
 | Rule | `.claude/rules/sdlc-artifacts.md` (`artifacts/**/*.md`) | Structure, traceability, and writing standards this document follows. |
 | Hook | `hook_implementation_task_gate.java` (`PreToolUse`, `Bash(git commit*)`) | Blocks a commit staging `src/` changes without a `TASK-###` in the message; the enforcement point for the Step 5 traceability gate. Commits touching only `artifacts/*.md` are unaffected. |
 | Hook | `hook_pre_edit`, `hook_scan_secrets`, `hook_autoformat`, `hook_post_edit`, `hook_log_commands`, `hook_test_summary` | Wired in `.claude/settings.json` but **not implemented** — each silently no-ops. Downstream agents must not assume secret scanning, formatting, or stop-time test summaries occur. |
@@ -293,10 +296,27 @@ verify observable guarantees without itself becoming a disclosure channel.
   credential today. `DriverManager` logs browser and headless state, `Hooks`
   logs scenario name and status, and `LoginSteps` logs nothing. Any new log
   statement that interpolates a username or password value is a review-blocking
-  defect.
-- **Transport (`NFR-002`, `AD-009`).** `base.url` is HTTPS and the demo host
-  redirects to HTTPS; `AD-009` adds an executed scheme assertion so a
-  downgrade to `http` fails the suite instead of passing silently.
+  defect. **Control ownership (`DR-012`):** because `hook_scan_secrets` is
+  unimplemented and silently no-ops, the Step 6 code review is the *sole active
+  control* for this rule — that check is mandatory and non-skippable, and the
+  intended hook must not be treated as if it were operating.
+- **Transport (`NFR-002`, `AD-010`, `AD-009`).** The committed `base.url` is
+  HTTPS and the demo host redirects to HTTPS, but `base.url` is a freely
+  overridable key. The **preventive** control is the `getBaseUrl()` scheme guard
+  (`AD-010`): it fails closed before the browser navigates, so no credential can
+  be submitted to an `http://` target. This matters because the host guard on
+  `getValidPassword()` compares only the host, and is bypassed entirely whenever
+  a `valid.password` override is supplied — the exact CI path recommended under
+  Deployment (`DR-001`). `AD-009`'s executed scheme assertion is retained as
+  defence in depth against a mid-session redirect or downgrade; it runs after the
+  password has already been submitted and therefore cannot be the primary control.
+- **Report artifacts as a disclosure channel (`AD-013`, `DR-008`).** Failure
+  screenshots and `cucumber.json` capture whatever is on screen. The password is
+  safe by construction (`FR-002` masking is itself verified), but the **username**
+  renders in plaintext and is embedded in the report. For the public `Admin` demo
+  account this is a non-issue. When `base.url` targets a non-demo environment with
+  injected credentials, `target/cucumber-reports/` and `target/surefire-reports/`
+  must be treated as sensitive and not published to an untrusted artifact store.
 - **Secret management (`AD-010`).** Precedence `-D` → environment → file lets CI
   inject real credentials without touching the repository. The
   `getValidPassword()` demo-host guard throws if the committed demo password
@@ -378,14 +398,22 @@ execution of the suite.
 
 - **Build/run:** `mvn test` compiles `src/test/java`, and Surefire executes
   only `**/TestRunner.java`, which drives all feature files.
-- **Prerequisites:** Java 21+ (sources compile at release 11), Maven 3.9+, a
-  local browser (Chrome by default). WebDriverManager fetches the driver binary
-  at runtime, so no binary is committed or manually installed.
+- **Prerequisites:** Java 21+, Maven 3.9+, a local browser (Chrome by default).
+  `pom.xml` sets `maven.compiler.source`/`target` to 11, which targets Java 11
+  bytecode **without** API-level enforcement — unlike `maven.compiler.release`, it
+  does not stop code referencing a post-11 API (`DR-010`). Harmless here because
+  the documented prerequisite is Java 21+. WebDriverManager fetches the driver
+  binary at runtime, so no binary is committed or manually installed.
 - **Environment overrides:** any `config.properties` key via `-Dkey=value` or an
-  upper-cased, underscore-separated environment variable. Typical CI
-  invocation: `mvn test -Dheadless=true -Dbrowser=chrome` with
-  `VALID_USERNAME`/`VALID_PASSWORD` injected from the CI secret store when
-  targeting a non-demo environment.
+  upper-cased, underscore-separated environment variable. **Use the exact property
+  keys** — `-Dbase.url=`, `-Dvalid.username=`, `-Dvalid.password=`, `-Dbrowser=`,
+  `-Dheadless=`, `-Dexplicit.wait=`, `-Dpage.load.timeout=`. A misspelled key such
+  as `-DbaseUrl=` is silently ignored and the run continues against the committed
+  value (`DR-007`; `.claude/CLAUDE.md` currently documents the wrong spelling —
+  see `OQ-D001` in `artifacts/design-review.md`). Typical CI invocation:
+  `mvn test -Dheadless=true -Dbrowser=chrome` with `VALID_USERNAME`/`VALID_PASSWORD`
+  injected from the CI secret store when targeting a non-demo environment — which
+  must still be an `https://` target, per the `AD-010` scheme guard.
 - **Selective execution:** `mvn test -Dcucumber.filter.tags="@TS_LOG_001"` for a
   single scenario; tag expressions such as `@negative or @validation` for a
   subset.
@@ -413,9 +441,11 @@ execution of the suite.
   `DriverManager` but no requirement mandates a cross-browser matrix (explicitly
   out of scope upstream), so no browser matrix is run by default.
 - `pom.xml` sets `maven.compiler.source`/`target` to 11 while the documented
-  prerequisite is Java 21+. Compiling at release 11 and running on a 21+ JVM is
-  intentional-and-valid; no requirement depends on a newer language level.
-  **Assumption** — flagged as a consistency observation, not a defect.
+  prerequisite is Java 21+. Targeting 11 bytecode and running on a 21+ JVM is
+  intentional-and-valid; no requirement depends on a newer language level. Note
+  that `source`/`target` is weaker than `maven.compiler.release` — it does not
+  enforce the Java 11 API surface (`DR-010`). **Assumption** — a consistency
+  observation, not a defect; switching to `release` is deferred housekeeping.
 - `artifacts/requirements.md` is approved and authoritative. This document adds
   no architectural driver absent from it; `AD-008` and `AD-009` close coverage
   gaps against existing IDs rather than introducing new requirements.
@@ -431,7 +461,7 @@ execution of the suite.
 
 | Risk | Likelihood | Impact | Mitigation |
 | --- | --- | --- | --- |
-| Live public demo site is down, slow, rate-limited, or has its demo data reset, failing the suite for non-product reasons | High | High | Keep timeouts generous (`AD-007` values); no retries so the failure is visible rather than masked; failure screenshots plus URL assertions distinguish "site down" from "product defect"; `base.url` is overridable to point at a private instance. |
+| Live public demo site is down, slow, rate-limited, or has its demo data reset, failing the suite for non-product reasons | High | High | Keep timeouts generous (`AD-007` values); no retries so the failure is visible rather than masked; failure screenshots plus URL assertions distinguish "site down" from "product defect"; `base.url` is overridable to point at a private instance. **Classification rule for Step 7 (`DR-011`):** a run in which the login page never renders — the `Given` step or the login-page URL assertion fails, with a blank or error screenshot — is an **environmental** failure and must be reported as such in `artifacts/verification-report.md`, not as an `FR`/`NFR` verification failure. |
 | OrangeHRM upgrade changes `oxd-*` CSS classes or DOM nesting, breaking locators | Medium | Medium | All selectors are confined to Page Object classes (`AD-006`), so repair is one file per page; prefer stable attributes (`By.name("username")`, `button[type='submit']`) over generated class names. |
 | Transient `NFR-001` loading indicator is missed on a fast response, causing intermittent `@TS_LOG_009` failures | Medium | Medium | `submitAndCaptureLoadingIndicator` starts the poll in the same call as the click, with a 50ms polling interval — already mitigated by design; do not refactor the capture into a separate `Then` step. |
 | Footer/social-link locators added for `FR-001` prove brittle (third-party markup, lazy loading) | Medium | Low | Scope locators narrowly to the footer container; assert presence only, not text or link targets; keep them in `LoginPage` so a fix is local. See `OQ-A001`. |
@@ -439,7 +469,7 @@ execution of the suite.
 | Plaintext demo credentials in `config.properties` are copied into a non-public context | Low | High | `getValidPassword()` host guard fails closed; the override path (`-D`/env) needs no code change; the in-file comment states the revisit trigger. |
 | Enabling parallel execution later surfaces latent cross-scenario coupling | Low | Medium | `ThreadLocal` driver plus per-scenario browser and per-instance step state are parallel-safe by construction (`AD-012`); treat the first parallel run as an explicit validation exercise. |
 | WebDriverManager cannot reach the network on a locked-down runner, so no driver binary resolves | Low | Medium | Cached binaries persist between runs; WebDriverManager supports pinning and an offline/mirror configuration if a restricted CI runner is adopted. |
-| `.claude/rules/tests.md` does not match `src/test/java/**`, so test standards do not auto-apply | Medium | Low | Noted in `.claude/CLAUDE.md`; the Review agent applies the standards manually. Tightening the path globs is a separate housekeeping change outside this story. |
+| `.claude/rules/tests.md`'s broad `**/*.java` glob makes its unit-test/mocking structure clause apply to a repository that has no unit-test layer, inviting out-of-scope work in Step 5 or a spurious Step 6 finding | Medium | Low | Precedence recorded in the SDLC Pipeline Components table (`DR-006`): coverage and determinism clauses bind; the structure clause is satisfied by the Gherkin + Page Object layering. Tightening the globs is housekeeping outside this story. *(Supersedes an earlier row that wrongly claimed `tests.md` does not auto-apply here — see `DR-005`.)* |
 
 ## Open Questions
 
@@ -470,3 +500,18 @@ execution of the suite.
 None of these four blocks the Design Review or Planner steps: `OQ-A001` and
 `OQ-A002` affect the scope of two additive tasks, while `OQ-A003` and `OQ-A004`
 recommend holding the status quo.
+
+### Resolution (Step 3, user decision)
+
+All four open questions are **closed** at the architect's recommended defaults:
+
+| ID | Resolution |
+| --- | --- |
+| `OQ-A001` | **Confirmed** — extend the existing `@TS_LOG_008` scenario; no new tag, so the `artifacts/requirements.md` traceability table is unchanged. Scope refined by `DR-002`/`DR-003`. |
+| `OQ-A002` | **Confirmed** — add the executed HTTPS assertion. `DR-001` additionally makes the primary control preventive (`AD-010`), with `AD-009` as defence in depth. |
+| `OQ-A003` | **Out of scope.** No CI pipeline file exists and none traces to any `FR`/`NFR`. Its absence is **not** a gap and must not be raised as a finding by any downstream agent. |
+| `OQ-A004` | **Out of scope.** Parallel execution stays intentionally disabled; `AD-012`'s `ThreadLocal` driver is parallel-*ready* only. **Not** a gap. |
+
+Design-review findings `DR-001`–`DR-012` are recorded in
+`artifacts/design-review.md`; the accepted ones are already reflected above.
+Two new non-blocking questions (`OQ-D001`, `OQ-D002`) are tracked there.
