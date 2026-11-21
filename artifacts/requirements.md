@@ -2,8 +2,11 @@
 
 ## User Story Reference
 
-**Story ID (PRD source):** US-AUTH-001 — see **Open Question OQ-001** below for a
-discrepancy with the repo's established `US-AUTH-002` ID.
+**Story ID (authoritative):** US-AUTH-002 — confirmed by the user against
+`.claude/CLAUDE.md` (line 10) and the repo's established convention. The
+source Confluence PRD page (13271042) self-identifies internally as
+`US-AUTH-001`; see **Open Question OQ-001 (Resolved)** below for provenance
+and reconciliation of that discrepancy.
 **Epic:** Authentication & Access Management
 **Target URL:** `https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`
 **Source:** Confluence page 13271042, "Login Functionality for OrangeHRM Portal"
@@ -194,17 +197,21 @@ HTTPS/no-logging aspects)*
 
 ## Open Questions
 
-### OQ-001: Story ID discrepancy (US-AUTH-001 vs US-AUTH-002)
-The Confluence PRD (page 13271042) self-identifies as **`US-AUTH-001`**, but
+### OQ-001: Story ID discrepancy (US-AUTH-001 vs US-AUTH-002) — Resolved
+**Resolution:** `US-AUTH-002` is the authoritative story ID for this epic,
+confirmed by the user, citing `.claude/CLAUDE.md` (line 10: "Built as
+capstone SDLC artifacts for user story `US-AUTH-002`") as the source of
+truth. This document and all downstream artifacts (architecture, impl-plan,
+etc.) use `US-AUTH-002` when citing the story.
+
+**Provenance (for traceability, not an open discrepancy):** The Confluence
+PRD (page 13271042) self-identifies internally as **`US-AUTH-001`**, while
 `.claude/CLAUDE.md` and the existing codebase (this repo's established
 convention, predating this pipeline run) refer to this same login capability
-as **`US-AUTH-002`** ("Customer Login & Authentication"). This document uses
-the PRD's own ID (`US-AUTH-001`) when citing the source story, and notes the
-repo's `US-AUTH-002` convention here rather than silently picking one. **This
-needs human confirmation**: is `US-AUTH-002` a renumbering of the same story,
-or is `US-AUTH-001` a different/earlier story and `US-AUTH-002` the correct
-authoritative ID for this epic? Downstream artifacts (architecture, impl-plan,
-etc.) should use whichever ID the user confirms as authoritative.
+as **`US-AUTH-002`** ("Customer Login & Authentication"). The two IDs refer to
+the same underlying login story; `US-AUTH-001` is retained here only as a
+record of the PRD's self-identification, not as an alternative authoritative
+ID.
 
 ### OQ-002: Scope beyond the PRD's 7 test scenarios
 The existing `src/test/resources/features/login.feature` already implements
