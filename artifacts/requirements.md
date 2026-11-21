@@ -159,9 +159,11 @@ was left blank
 plaintext or written to logs, and a failed attempt's error message does not
 reveal whether the username or the password was incorrect
 *(traces to PRD AC3.1 generic-error wording; validated functionally via
-`@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011`, and operationally via code review
-of logging/transport handling — no dedicated Cucumber scenario exists for the
-HTTPS/no-logging aspects)*
+`@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011`. The HTTPS clause is now executed
+via `@TS_LOG_001` and `@TS_LOG_008` (`TASK-004`) and guarded preventively by
+`ConfigReader.getBaseUrl()` (`TASK-001`). The no-logging clause remains
+code-review-only (`TASK-007`) — this is unchanged by the HTTPS fix and is not
+yet automated)*
 
 ## Traceability
 
@@ -174,7 +176,7 @@ HTTPS/no-logging aspects)*
 | FR-005 | PRD AC3.2 | `@TS_LOG_004`, `@TS_LOG_005`, `@TS_LOG_006` | Approved |
 | FR-006 | PRD AC4.1 | `@TS_LOG_010` | Approved |
 | NFR-001 | PRD AC2.3 | `@TS_LOG_009` | Approved |
-| NFR-002 | PRD story intent, AC1.2/AC3.1, code-quality.md | *(no dedicated scenario — partially covered by `@TS_LOG_002/003/011`)* | Approved |
+| NFR-002 | PRD story intent, AC1.2/AC3.1, code-quality.md | `@TS_LOG_001`, `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_008`, `@TS_LOG_011` (HTTPS clause, `TASK-001`/`TASK-004`); no-logging clause remains code-review-only (`TASK-007`) | Approved |
 
 ## Out of Scope
 

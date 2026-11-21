@@ -79,6 +79,23 @@ finding, and depends on nothing.
   Implementation Agent must derive them from the live DOM during `TASK-005`; this plan
   deliberately does not invent them.
 
+## Implementation Progress (Step 5)
+
+All nine tasks are implemented, tested, and committed. See
+`artifacts/verification-report.md` for the full-suite run (`TASK-008`).
+
+| Task | Status | Outcome |
+| --- | --- | --- |
+| `TASK-001` | Done | Preventive fail-closed HTTPS scheme guard added to `ConfigReader.getBaseUrl()`; `getValidPassword()`/`isDemoHost` left byte-for-byte unchanged. |
+| `TASK-002` | Done | Surefire `<includes>` extended to `**/*Test.java`; confirmed no double-count of the 12 Cucumber scenarios (`REC-002`). |
+| `TASK-003` | Done | `ConfigReaderTest` added (6 cases); all pass; properties saved/restored per test. |
+| `TASK-004` | Done | Executed HTTPS scheme assertion added to `@TS_LOG_001` and `@TS_LOG_008`. |
+| `TASK-005` | Done | `LoginPage.findMissingLoginControls()`, footer/placeholder readers added; `areAllLoginControlsDisplayed()` removed. Footer locators derived from the live rendered DOM. |
+| `TASK-006` | Done | `@TS_LOG_008` extended with missing-controls and placeholder-value assertions; negative check performed and reverted (confirmed real coverage). |
+| `TASK-007` | Done | Credential-logging review check performed over the `TASK-001`–`TASK-006` diff and the generated reports; no finding. Recorded in `artifacts/verification-report.md`. |
+| `TASK-008` | Done | Full-suite run completed; see `artifacts/verification-report.md` for the classification of the one pre-existing `@TS_LOG_009` failure. |
+| `TASK-009` | Done | `FR-001`/`NFR-002` coverage notes flipped to Complete in `artifacts/architecture.md` and `artifacts/requirements.md`, backed by the passing tests above. |
+
 ## Task List
 
 ### TASK-001: Preventive fail-closed HTTPS scheme guard in `ConfigReader.getBaseUrl()`
@@ -489,14 +506,14 @@ depend on. Start `TASK-005` in parallel if a second thread is available.
 
 | FR/NFR | Architecture | DR | TASK | Test | Status |
 | --- | --- | --- | --- | --- | --- |
-| `FR-001` | `AD-008`, `LoginPage` | `DR-002`, `DR-003` | `TASK-005`, `TASK-006`, `TASK-009` | `@TS_LOG_008` (extended) | Planned |
+| `FR-001` | `AD-008`, `LoginPage` | `DR-002`, `DR-003` | `TASK-005`, `TASK-006`, `TASK-009` | `@TS_LOG_008` (extended) | Done |
 | `FR-002` | `LoginPage.getPasswordFieldType` | — | *No task — Complete* | `@TS_LOG_007` | Covered |
 | `FR-003` | `LoginPage`, `DashboardPage` | — | *No task — Complete* | `@TS_LOG_001`, `@TS_LOG_012` | Covered |
 | `FR-004` | `LoginPage.getErrorBannerText` | — | *No task — Complete* | `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011` | Covered |
 | `FR-005` | Field-scoped error locators | — | *No task — Complete* | `@TS_LOG_004`, `@TS_LOG_005`, `@TS_LOG_006` | Covered |
 | `FR-006` | `ResetPasswordPage` | — | *No task — Complete* | `@TS_LOG_010` | Covered |
 | `NFR-001` | `submitAndCaptureLoadingIndicator` | `DR-004` | `TASK-008` (report the proxy) | `@TS_LOG_009` | Covered (documented proxy) |
-| `NFR-002` | `AD-009`, `AD-010`, `AD-011` | `DR-001`, `DR-008`, `DR-012` | `TASK-001`, `TASK-002`, `TASK-003`, `TASK-004`, `TASK-007`, `TASK-009` | `ConfigReaderTest`, `@TS_LOG_001`, `@TS_LOG_008` | Planned |
+| `NFR-002` | `AD-009`, `AD-010`, `AD-011` | `DR-001`, `DR-008`, `DR-012` | `TASK-001`, `TASK-002`, `TASK-003`, `TASK-004`, `TASK-007`, `TASK-009` | `ConfigReaderTest`, `@TS_LOG_001`, `@TS_LOG_008` | Done |
 
 **No orphans.** Every `TASK-001`–`TASK-009` cites at least one `FR`/`NFR`, an
 architecture section, and (except the two enabler/gate tasks) a `DR-###`. Every
