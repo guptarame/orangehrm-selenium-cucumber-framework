@@ -1,11 +1,18 @@
 package com.orangehrm.config;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 /**
  * NFR-002: negative-path coverage for ConfigReader.getBaseUrl()'s fail-closed
@@ -104,5 +111,37 @@ public class ConfigReaderTest {
         System.clearProperty(ALLOW_INSECURE_KEY);
 
         assertThrows(IllegalStateException.class, () -> ConfigReader.getInstance().getValidPassword());
+    }
+
+    // DR-017: the HTTPS scheme guard's opt-out path must leave a detectable trace.
+    // The warning is logged once per JVM, so the "logged" flag is reset via reflection
+    // before this test to make the assertion independent of execution order relative to
+    // the other opt-out tests above in this class.
+    @Test
+    public void getBaseUrl_withInsecureOptOutEngaged_logsWarningNamingTheKeyOnly() throws ReflectiveOperationException {
+        String httpUrl = "http://opensource-demo.orangehrmlive.com/web/index.php/auth/login";
+        System.setProperty(BASE_URL_KEY, httpUrl);
+        System.setProperty(ALLOW_INSECURE_KEY, "true");
+        resetInsecureBaseUrlWarningLoggedFlag();
+
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        try {
+            System.setErr(new PrintStream(capturedErr, true, StandardCharsets.UTF_8));
+            ConfigReader.getInstance().getBaseUrl();
+        } finally {
+            System.setErr(originalErr);
+        }
+
+        String logOutput = capturedErr.toString(StandardCharsets.UTF_8);
+        assertTrue("Expected a WARN log naming " + ALLOW_INSECURE_KEY + " when its opt-out is engaged",
+                logOutput.contains(ALLOW_INSECURE_KEY));
+        assertTrue("WARN log must not contain the base.url value", !logOutput.contains(httpUrl));
+    }
+
+    private static void resetInsecureBaseUrlWarningLoggedFlag() throws ReflectiveOperationException {
+        Field flagField = ConfigReader.class.getDeclaredField("INSECURE_BASE_URL_WARNING_LOGGED");
+        flagField.setAccessible(true);
+        ((AtomicBoolean) flagField.get(null)).set(false);
     }
 }
