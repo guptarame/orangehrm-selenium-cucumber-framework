@@ -1,89 +1,57 @@
-# Pull Request: Fix login loading-indicator race and credential hardcoding
+# Pull Request: [Feature] Resilient teardown, wait fixes and config hardening for the login automation framework
+
+**Date:** 2026-11-11
+**Branch:** `feature/login-functionality-full-rerun` -> `main`
+**PR status:** PR #4 is already open for this branch (earlier commits up to `f5b3e17`, which is what `origin` currently has). The 10 newer commits (`9612d23`..`a07491f`, plus this description commit) update PR #4 once pushed; no new PR is needed.
 
 ## Summary
-This cycle of the Agentic SDLC pipeline reviewed the OrangeHRM login automation framework against PRD **US-AUTH-001** (Confluence: `MFS` space, page 13271042) and closed the two **Should-fix** conditions raised by design review that had concrete code-level evidence, plus two smaller hardening/cleanup items.
+Third SDLC run on the OrangeHRM login framework (PRD US-AUTH-001, Selenium + Cucumber + JUnit/TestNG runner, page objects). The framework already exists; this run hardens it. It makes driver teardown resilient, removes the implicit-wait / explicit-wait interaction that slowed negative checks, tightens the loading-indicator wait, makes config precedence predictable, adds a credential guard for non-demo hosts, and adds two scenarios (TS_LOG_011 both-invalid, TS_LOG_012 Enter-key login), taking `login.feature` to 12 scenarios.
 
-**PRD:** https://epam-team-en32bjvm.atlassian.net/wiki/spaces/MFS/pages/13271042/Login+Functionality+for+OrangeHRM+Portal
-**Traceability:** Full SDLC artifacts in `docs/sdlc/` (requirements → architecture → design-review → impl-plan → verification)
+Verification result: **PASS with live-run caveat.** Compile, Cucumber dry-run and non-browser JVM checks only. No browser was available, so nothing was run against the live OrangeHRM demo.
 
----
+**Not re-read this run:** the Confluence PRD. `docs/sdlc/requirements.md` was re-derived from the prior extract, not from a fresh read of the page.
 
 ## Changes Made
+Code delta for this run's commits (net of line-ending-only noise): 10 files, about 136 insertions / 27 deletions. Whole branch vs `main` (including PR #4 content) is 155 insertions / 27 deletions across the same 10 files.
 
-### Bug fixes (design-review Should-fix)
-- **Loading-indicator race (`@TS_LOG_009`, FR-4):** `LoginPage.isLoadingIndicatorDisplayed()` used to be polled from a separate `Then` step *after* the login click had already returned in the `When` step, so on a fast auth response the spinner could appear and vanish before the assertion started polling — a genuine false-failure race, not just "timing-sensitive." Added `LoginPage.submitAndCaptureLoadingIndicator(username, password)`, which enters credentials, clicks login, and polls for the indicator synchronously within the same call. `LoginSteps` now stores that result and the `Then` step asserts the stored value instead of re-polling. No `Thread.sleep` introduced. Verified with 5 consecutive re-runs of `@TS_LOG_009` — 0 flaky failures.
-- **Credential hardcoding (`@TS_LOG_002/005/006/007`):** these scenarios hardcoded the literal valid username/password directly in Gherkin step text, duplicating the values already centralized in `config.properties`. Added ConfigReader-backed step definitions (mirroring the existing pattern for other scenarios) and reworded the four scenarios to route through them. Genuinely-invalid literals (e.g. wrong password, empty strings) were left as-is, since those are intentionally not real credentials.
+- **Driver lifecycle (T-01, T-04; a0caf19)** `DriverManager`: `quitDriver()` clears the ThreadLocal in a `finally`, logs and swallows a failing `quit()`; init failure after browser creation quits the browser and rethrows; new `peekDriver()` returns the current driver without creating one. `Hooks.tearDown` uses `peekDriver()`, is null-safe, keeps screenshot errors from masking the scenario failure, and always calls `quitDriver()` in `finally`.
+- **Wait fixes (T-02, T-03; a0caf19, ce5b4e5)** Implicit wait removed (key and getter deleted; no non-zero implicit wait remains). `BasePage.isPresent` polls at 50 ms for 3 s and returns false instead of throwing. `LoginPage` loading-indicator locator scoped to the form / submit button. `DashboardPage` URL check tightened to `dashboard/index`.
+- **Config hardening (T-05, T-06; 4a2ac57)** `pom.xml` no longer defaults or passes through `browser`; `config.properties` supplies `chrome`. `ConfigReader` precedence is `-D` > environment variable > file; blank values are ignored. A non-demo `base.url` without a supplied password throws `IllegalStateException` (message never contains the password). Demo host is unaffected.
+- **Scenarios (T-03, T-07; ce5b4e5)** TS_LOG_011 and TS_LOG_012 added; Enter-key step implemented through the page object (no locators in step definitions); TS_LOG_009 tagged `@timing` as best-effort. `-Dcucumber.filter.tags="not @timing"` gives 11 scenarios.
+- **Docs (T-08; 0e7b76b)** Architecture addendum A.1-A.6 (including `-Dbrowser` and tag-filter usage, headless note).
+- **SDLC artifacts** `requirements.md`, `architecture.md`, `design-review.md`, `impl-plan.md`, `verification-report.md` regenerated for run 3.
 
-### Hardening / cleanup
-- `BasePage.isDisplayed()` now catches `TimeoutException` specifically instead of generic `Exception`, so real driver/session errors are no longer silently masked as "element not found."
-- Removed the unused `pom.xml` `<env>qa</env>` property and its Surefire `systemPropertyVariables` passthrough — no code ever read it.
-- Added a comment above `valid.username`/`valid.password` in `config.properties` documenting that these are OrangeHRM's public demo values and must be overridden via `-D` system properties / CI secrets before pointing this framework at any non-public environment.
-- `LoginSteps` now fetches `WebDriver` once via `DriverManager.getDriver()` and shares it across the `LoginPage`/`DashboardPage`/`ResetPasswordPage` constructors instead of re-fetching per call.
+Earlier commits already in PR #4 (guarded teardown screenshot capture, documented demo-credential exception, code-review draft) remain part of the branch.
 
-### Repo hygiene (carried forward, required for `main` to build)
-- `pom.xml` on `main` was pointing at an unrelated, incompatible project scaffold (wrong `groupId`/`artifactId`, JUnit Jupiter, Selenium 4.25.0, no Cucumber at all — `main` never received the fix that was already pushed to `feature/login-coverage-improvements`). This PR carries that corrected `pom.xml` (Java 11, Selenium 4.27.0, Cucumber 7.20.1, JUnit 4.13.2, WebDriverManager 5.9.2, SLF4J 2.0.16) so `main` actually builds this framework.
-
-### Deferred
-- CI chrome-leg / OWASP Dependency-Check plugin work (impl-plan T7): infra work, not framework code — out of scope for this pass, left as a follow-up.
-
-### SDLC Artifacts
-- `docs/sdlc/requirements.md` — extracted from Confluence PRD (US-AUTH-001)
-- `docs/sdlc/architecture.md` — framework architecture, gaps explicitly marked
-- `docs/sdlc/design-review.md` — verdict: APPROVED WITH CONDITIONS (0 must-fix, 4 should-fix, 5 nice-to-have)
-- `docs/sdlc/impl-plan.md` — 8-task breakdown, ~4h estimate
-- `docs/sdlc/verification-report.md` — verdict: PASS WITH LIMITATIONS
-
----
+Not part of this PR: uncommitted working-tree edits to `.github/agents/*`, `.gitignore`, `.idea/*`, `README.md`, `ResetPasswordPage.java`, and untracked `.claude/`, `.mcp.json`. Most are line-ending noise; they are not committed and should not be reviewed here.
 
 ## Test Evidence
+Source: `docs/sdlc/verification-report.md` (a07491f), verdict PASS with live-run caveat.
 
-Independently re-run by the verification stage (not reused from implementation):
-
-| Command | Result |
+| Check | Result |
 |---|---|
-| `mvn clean compile test-compile` | BUILD SUCCESS |
-| `mvn clean test` (Chrome, default) | 10/10 scenarios, 32/32 steps passed |
-| `mvn clean test -Dbrowser=firefox` | 10/10 scenarios, 32/32 steps passed |
-| `@TS_LOG_009` × 5 consecutive runs | 5/5 passed, 0 flaky failures |
-| `mvn clean compile test-compile` (this branch, rebased onto corrected `main`) | BUILD SUCCESS |
+| `mvn -o -q -B test-compile -DskipTests` | Success |
+| Cucumber `--dry-run` (all) | 12 scenarios, 39 steps, all matched |
+| Cucumber `--dry-run --tags "not @timing"` | 11 scenarios, 36 steps matched |
+| Ad hoc JVM checks (stubbed WebDriver, ConfigReader precedence, credential guard) | 23 checks OK; script not committed |
+| grep for `Thread.sleep` / implicit-wait use; locators in step definitions | None found |
+| Live browser scenarios (Chrome, headless, Firefox/Edge, slow network) | **Not run** |
+| T-09 browser matrix and T-10 full `mvn clean test` | **Not executed** |
 
-No leaked browser/driver processes observed after either run. No credential values found in console output or Cucumber JSON report.
-
-**Not verified** (explicitly, not assumed passing): Edge browser, network throttling, cross-browser matrix beyond Chrome, load/performance testing.
-
----
-
-## Requirements Traceability
-
-| Requirement | Status |
-|---|---|
-| FR-1..FR-8 (login UI, masking, auth, loading indicator, invalid creds, required-field validation, forgot-password nav) | Covered — FR-4's flakiness fixed this cycle |
-| NFR-1..NFR-5 (compatibility, availability, performance, security beyond masking, accessibility) | Not covered — explicitly out of scope per `requirements.md`, no dedicated test/check exists |
-
-Full detail in `docs/sdlc/architecture.md` §7 and `docs/sdlc/verification-report.md`.
-
----
+No claim is made that any scenario passes against the live site. Pass rate and timings are not measured. No defects were found in the changes.
 
 ## Known Limitations
-- No Edge/Safari/mobile browser coverage.
-- No parallel execution (thread-local driver storage makes it *safe*, but nothing configures it).
-- NFR-1..NFR-5 have no dedicated automated coverage (unchanged from requirements/design review — not part of this cycle's scope).
-- Credentials remain a plaintext, checked-in demo value — acceptable for the public OrangeHRM demo target, flagged for externalization if this framework ever points at a non-public environment.
-
----
+- No live run: T-09 and T-10 are open; locator scoping (T-03), the tightened dashboard URL, new TS_LOG_011/012, failure screenshots, orphan-process behaviour and implicit-wait timing gains are unverified.
+- TS_LOG_009 (loading indicator) is best-effort and may be timing-dependent.
+- Cross-browser (Firefox/Edge) not verified; no parallel execution; no mobile coverage; Remember Me is not in the PRD.
+- Host `BROWSER` / `HEADLESS` environment variables now override the file (by design; note for CI).
+- `impl-plan.md` T-03 says 9 scenarios for the `@timing` exclusion; the correct count is 11 (doc-only inconsistency).
+- Demo credentials remain in `config.properties` as a documented exception, guarded for non-demo hosts.
 
 ## Reviewer Checklist
-- [ ] `@TS_LOG_009` fix genuinely closes the step-boundary race (see `LoginPage.submitAndCaptureLoadingIndicator`)
-- [ ] No literal credentials remain in `@TS_LOG_002/005/006/007` step text
-- [ ] `BasePage.isDisplayed()` exception narrowing doesn't change intended negative-path behavior
-- [ ] `pom.xml` correction is acceptable as part of this PR (see "Repo hygiene" above)
-- [ ] SDLC artifacts in `docs/sdlc/` are clear and traceable
-
----
-
-## Related
-- **PRD:** Confluence page 13271042 (`MFS` space) — linked in `docs/sdlc/requirements.md`
-- **Pipeline:** `sdlc_orchestrator` → requirements → architecture → design-review → planning → implementation → verification → this PR
-
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+- [ ] Teardown always quits the driver and never masks the original failure
+- [ ] No implicit wait remains; negative checks use the explicit poll
+- [ ] Config precedence and credential guard behave as described
+- [ ] Step definitions contain no locators
+- [ ] Verification caveat understood: run `mvn clean test` (headed and `-Dheadless=true`), `-Dcucumber.filter.tags="not @timing"` and `-Dbrowser=edge` on a machine with Chrome before merge
+- [ ] Verification report and addendum are complete

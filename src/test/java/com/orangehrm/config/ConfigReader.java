@@ -2,7 +2,12 @@ package com.orangehrm.config;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Loads test configuration from src/test/resources/config.properties.
@@ -16,6 +21,11 @@ import java.util.Properties;
 public final class ConfigReader {
 
     private static final String CONFIG_FILE = "config.properties";
+    private static final String DEMO_HOST = "opensource-demo.orangehrmlive.com";
+    private static final String HTTPS_SCHEME = "https";
+    private static final String ALLOW_INSECURE_BASE_URL_KEY = "allow.insecure.base.url";
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigReader.class);
+    private static final AtomicBoolean INSECURE_BASE_URL_WARNING_LOGGED = new AtomicBoolean(false);
     private static volatile ConfigReader instance;
     private final Properties properties;
 
@@ -43,15 +53,16 @@ public final class ConfigReader {
     }
 
     /**
-     * Returns the property value, giving priority to a matching JVM system
-     * property (-Dkey=value) over the value stored in config.properties.
+     * Returns the property value. Resolution order: non-empty JVM system
+     * property (-Dkey=value), non-empty environment variable (key upper-cased,
+     * dots replaced by underscores, e.g. VALID_PASSWORD), then
+     * config.properties.
      */
     public String get(String key) {
-        String systemProperty = System.getProperty(key);
-        if (systemProperty != null && !systemProperty.trim().isEmpty()) {
-            return systemProperty.trim();
+        String value = resolveOverride(key);
+        if (value == null) {
+            value = properties.getProperty(key);
         }
-        String value = properties.getProperty(key);
         if (value == null) {
             throw new RuntimeException("Missing required configuration property: " + key);
         }
@@ -59,11 +70,24 @@ public final class ConfigReader {
     }
 
     public String get(String key, String defaultValue) {
+        String value = resolveOverride(key);
+        if (value == null) {
+            value = properties.getProperty(key, defaultValue);
+        }
+        return value.trim();
+    }
+
+    /** Returns the non-empty -D or environment override for the key, else null. */
+    private String resolveOverride(String key) {
         String systemProperty = System.getProperty(key);
         if (systemProperty != null && !systemProperty.trim().isEmpty()) {
             return systemProperty.trim();
         }
-        return properties.getProperty(key, defaultValue).trim();
+        String envValue = System.getenv(key.toUpperCase().replace('.', '_'));
+        if (envValue != null && !envValue.trim().isEmpty()) {
+            return envValue.trim();
+        }
+        return null;
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
@@ -74,8 +98,41 @@ public final class ConfigReader {
         return Integer.parseInt(get(key, String.valueOf(defaultValue)));
     }
 
+    /**
+     * Resolves base.url and fails closed unless its scheme is https (NFR-002).
+     * This check is preventive, running before the browser ever navigates -
+     * the executed scheme assertion in LoginSteps necessarily runs only after
+     * LoginPage.login() has already typed and POSTed the password, so it
+     * cannot by itself stop a cleartext submission. Opt out only via
+     * allow.insecure.base.url for a local, non-TLS sandbox. When that opt-out
+     * is engaged, a one-time WARN (key name only, never the base.url value)
+     * is logged so the bypass is detectable after the fact (DR-017).
+     */
     public String getBaseUrl() {
-        return get("base.url");
+        String baseUrl = get("base.url");
+        if (getBoolean(ALLOW_INSECURE_BASE_URL_KEY, false)) {
+            if (INSECURE_BASE_URL_WARNING_LOGGED.compareAndSet(false, true)) {
+                LOGGER.warn("{} is set; the https scheme guard on base.url is bypassed", ALLOW_INSECURE_BASE_URL_KEY);
+            }
+            return baseUrl;
+        }
+        String scheme = resolveScheme(baseUrl);
+        if (!HTTPS_SCHEME.equalsIgnoreCase(scheme)) {
+            String schemeDescription = scheme == null ? "missing or unparseable" : scheme;
+            throw new IllegalStateException("base.url must use the https scheme, but its scheme is "
+                    + schemeDescription + "; set " + ALLOW_INSECURE_BASE_URL_KEY
+                    + "=true to opt out for a local, non-TLS sandbox only");
+        }
+        return baseUrl;
+    }
+
+    /** Returns the URL's scheme, or null for a malformed or scheme-less URL rather than throwing. */
+    private static String resolveScheme(String url) {
+        try {
+            return URI.create(url).getScheme();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String getBrowser() {
@@ -84,10 +141,6 @@ public final class ConfigReader {
 
     public boolean isHeadless() {
         return getBoolean("headless", false);
-    }
-
-    public int getImplicitWait() {
-        return getInt("implicit.wait", 5);
     }
 
     public int getExplicitWait() {
@@ -102,7 +155,26 @@ public final class ConfigReader {
         return get("valid.username");
     }
 
+    /**
+     * The committed file password is a public demo value. It is only allowed
+     * while base.url targets the public demo host; otherwise the password must
+     * be supplied via -Dvalid.password or the VALID_PASSWORD environment
+     * variable.
+     */
     public String getValidPassword() {
+        if (resolveOverride("valid.password") == null && !isDemoHost(getBaseUrl())) {
+            throw new IllegalStateException("base.url is not the public demo host (" + DEMO_HOST
+                    + "); supply valid.password via -Dvalid.password or the VALID_PASSWORD "
+                    + "environment variable instead of the committed demo value");
+        }
         return get("valid.password");
+    }
+
+    private static boolean isDemoHost(String url) {
+        try {
+            return DEMO_HOST.equalsIgnoreCase(URI.create(url).getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

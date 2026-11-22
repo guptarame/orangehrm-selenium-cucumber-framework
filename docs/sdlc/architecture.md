@@ -1,185 +1,172 @@
 # Architecture Document
 
-**Feature:** OrangeHRM Login Automation Framework
-**Source Requirements:** `docs/sdlc/requirements.md` (FR-1..FR-8, NFR-1..NFR-5, US-AUTH-001)
-**Date:** 2026-09-27
-**Agent:** architecture-agent
-
-> Legend: **[IMPLEMENTED]** = verified present in the current codebase. **[PROPOSED]** = recommended improvement, not yet built. Everything not tagged PROPOSED is IMPLEMENTED.
+**Feature:** Login Functionality for OrangeHRM Portal (US-AUTH-001)
+**Date:** 2026-11-11
+**Agent:** architecture-agent (SDLC Stage 2, run 3)
+**Input:** `docs/sdlc/requirements.md` (FR-1..FR-8, NFR-1..NFR-6), existing code under `src/test/java`, `src/test/resources`, `pom.xml`
 
 ---
 
 ## 1. Project Context and Overview
 
-This is a Selenium WebDriver + Cucumber (Gherkin) + JUnit 4 + Maven test automation framework, written in Java 11, that exercises the OrangeHRM demo application's login module (`https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`). It implements the Page Object Model (POM):
+Automated UI tests verify the OrangeHRM login page (`https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`). The existing framework is **Selenium 4 + Cucumber (BDD) + JUnit 4 + Maven** using the **Page Object Model (POM)**. This architecture preserves that stack and its conventions. The "Recommended Stack" in the agent guide (JUnit 5) is deliberately not adopted: Cucumber 7 runs through `cucumber-junit` (JUnit 4), and migrating would be speculative complexity with no requirement driving it.
 
-- `login.feature` (Gherkin) expresses 10 independent scenarios (`@TS_LOG_001`–`@TS_LOG_010`) against a shared `Background` (navigate to the login page).
-- `LoginSteps` binds each Gherkin step to Page Object calls and JUnit assertions — no Selenium calls or business logic live in the step class.
-- `LoginPage`, `DashboardPage`, `ResetPasswordPage` encapsulate locators/actions/state for their respective pages, all extending `BasePage`, which centralizes explicit-wait helpers.
-- `DriverManager` owns WebDriver creation/teardown (Chrome) behind a `ThreadLocal`.
-- `Hooks` runs `@Before`/`@After` per scenario: driver bootstrap, failure screenshot capture, driver teardown.
-- `ConfigReader` is a singleton that loads `src/test/resources/config.properties` and lets any key be overridden by a non-empty JVM `-D` system property.
-- `TestRunner` is the JUnit4 `@RunWith(Cucumber.class)` entry point Maven Surefire executes, and it configures Cucumber's reporting plugins.
-
-The framework currently automates all 10 scenarios enumerated in `login.feature`, giving scenario-level coverage for FR-1 through FR-8. NFR-1..NFR-5 are largely **not** exercised by named test scenarios (see §7). This document describes the framework as it stands and separately calls out proposed, not-yet-built improvements.
-
----
+```
+ Maven (surefire) -> JUnit4 TestRunner (@RunWith Cucumber)
+        |
+        v
+ login.feature (Gherkin) -> LoginSteps (glue) -> Page Objects (BasePage <- LoginPage/DashboardPage/ResetPasswordPage)
+        ^                                              |
+   Hooks (@Before/@After)                              v
+        |                                  DriverManager (ThreadLocal WebDriver) -> Browser (Chrome/Firefox/Edge)
+        v                                              ^
+ ConfigReader (-D > config.properties) -----------------+
+        |
+        v
+ Reports: target/cucumber-reports (html/json/junit xml), surefire-reports, failure screenshots attached to report
+```
 
 ## 2. Components
 
-| Component | Responsibility | Inputs | Outputs | Dependencies | Key Class(es) |
+| Component | Responsibility | Inputs | Outputs | Depends on | Key classes |
 |---|---|---|---|---|---|
-| Test Runner | JUnit entry point; wires Cucumber to feature files and glue packages; configures report plugins | `src/test/resources/features/*.feature`, glue packages | Console (`pretty`, `summary`) + HTML/JSON/JUnit-XML reports under `target/cucumber-reports/` | cucumber-junit, junit | `runner.TestRunner` |
-| Feature/Scenarios | Behavior specification in Gherkin, one scenario per acceptance case | Requirements (FR-1..FR-8) | Executable, tagged scenarios | Cucumber Gherkin parser | `src/test/resources/features/login.feature` |
-| Step Definitions | Bind Gherkin step text to Page Object calls; assert outcomes | Parsed step text/parameters, `DriverManager.getDriver()` | Pass/fail JUnit assertions | cucumber-java, junit `Assert`, Page Objects | `stepdefinitions.LoginSteps` |
-| Lifecycle Hooks | Per-scenario browser setup/teardown; failure screenshot capture; logging | Cucumber `Scenario` object | Fresh `WebDriver` per scenario; PNG attached to the scenario **only on failure** | `DriverManager`, SLF4J | `hooks.Hooks` |
-| Driver Management | Creates/returns/quits a thread-local `WebDriver` for the configured browser; applies timeouts | `ConfigReader` (browser, headless, waits) | A live, timeout-configured `WebDriver` session | selenium-java, webdrivermanager | `driver.DriverManager` |
-| Configuration | Loads `config.properties` from the classpath once (singleton); resolves `-D` overrides; typed getters | `config.properties`, JVM system properties | Typed config values (String/boolean/int) | java.util.Properties | `config.ConfigReader` |
-| Page Objects | Encapsulate locators and page-specific actions/state readers | `WebDriver` (via `BasePage`), `ConfigReader` (explicit wait) | Fluent action methods; boolean/string state readers | selenium-java | `pages.BasePage`, `pages.LoginPage`, `pages.DashboardPage`, `pages.ResetPasswordPage` |
+| Test runner | Discover features, bind glue, configure report plugins | Feature files, `-Dcucumber.filter.tags` | Cucumber reports | Cucumber-JUnit | `runner.TestRunner` |
+| Feature files | Business-readable scenarios and tags (e.g. `@TS_LOG_001`) | Requirements | Gherkin steps | none | `features/login.feature` |
+| Step definitions | Translate steps to page-object calls and hold assertions | Gherkin params | Pass/fail | Pages, DriverManager, ConfigReader | `stepdefinitions.LoginSteps` |
+| Hooks | Per-scenario setup and teardown; failure screenshot; always quit driver | `Scenario` | Browser session, PNG attachment | DriverManager | `hooks.Hooks` |
+| Driver management | Create browser per thread by config, timeouts, headless, quit | browser, headless, waits | `WebDriver` | Selenium, WebDriverManager, ConfigReader | `driver.DriverManager` |
+| Page objects | Own locators and UI actions; no assertions | `WebDriver` | State/text/booleans | Selenium | `BasePage`, `LoginPage`, `DashboardPage`, `ResetPasswordPage` |
+| Base page utilities | Reusable explicit-wait helpers (visible, clickable, URL, etc.) | locators | `WebElement`s | `WebDriverWait`, ConfigReader | `BasePage` |
+| Configuration | Single source of config with override order | `-D` props, `config.properties` | typed getters | JDK | `config.ConfigReader` |
 
-**Verified dependency versions (`pom.xml`, all match the recommended stack exactly):** Java 11 (`maven.compiler.source/target`), Selenium Java `4.27.0`, Cucumber Java/JUnit `7.20.1`, JUnit `4.13.2`, WebDriverManager `5.9.2`, Maven Compiler Plugin `3.13.0`, Maven Surefire Plugin `3.5.2`, SLF4J Simple `2.0.16`. No unexpected additions or mismatches found.
-
----
+Single-responsibility rules: steps assert, pages act, hooks manage lifecycle, `DriverManager` owns the driver, `ConfigReader` owns configuration.
 
 ## 3. Directory Structure
 
 ```
-orangehrm-selenium-cucumber-framework/
-├── pom.xml
-├── src/test/java/com/orangehrm/
-│   ├── config/ConfigReader.java
-│   ├── driver/DriverManager.java
-│   ├── hooks/Hooks.java
-│   ├── pages/
-│   │   ├── BasePage.java
-│   │   ├── LoginPage.java
-│   │   ├── DashboardPage.java
-│   │   └── ResetPasswordPage.java
-│   ├── runner/TestRunner.java
-│   └── stepdefinitions/LoginSteps.java
-└── src/test/resources/
-    ├── config.properties
-    └── features/login.feature
+pom.xml
+docs/sdlc/                       requirements.md, architecture.md, ...
+src/test/java/com/orangehrm/
+  config/ConfigReader.java
+  driver/DriverManager.java
+  hooks/Hooks.java
+  pages/{BasePage,LoginPage,DashboardPage,ResetPasswordPage}.java
+  runner/TestRunner.java
+  stepdefinitions/LoginSteps.java
+src/test/resources/
+  config.properties
+  features/login.feature
+target/cucumber-reports/         generated: html, json, junit xml
 ```
 
-Reports are generated at runtime under `target/cucumber-reports/` (not checked in).
-
----
+New work follows the same packages (new page -> `pages`, new feature -> `features` plus steps in `stepdefinitions`).
 
 ## 4. Test Execution Flow
 
-```
-mvn test
-  └─ Surefire (includes only **/TestRunner.java; passes -Dbrowser / -Denv as system properties)
-       └─ TestRunner  [@RunWith(Cucumber.class), @CucumberOptions]
-            ├─ loads features:  src/test/resources/features/**
-            ├─ loads glue:      com.orangehrm.stepdefinitions, com.orangehrm.hooks
-            └─ per scenario (independent, isolated):
-                 1. Hooks.setUp (@Before)      → DriverManager.getDriver() lazily launches a new
-                                                   browser session on the current thread
-                 2. Gherkin steps execute       → LoginSteps → LoginPage/DashboardPage/
-                                                   ResetPasswordPage (via BasePage explicit waits)
-                 3. JUnit Assert in LoginSteps  → scenario pass/fail
-                 4. Hooks.tearDown (@After)     → if scenario.isFailed(): capture PNG via
-                                                   TakesScreenshot, scenario.attach(...)
-                                                 → DriverManager.quitDriver() (closes browser,
-                                                   clears the ThreadLocal)
-       └─ Cucumber plugins emit: pretty + summary (console), cucumber-html-report.html,
-            cucumber.json, cucumber-junit.xml → target/cucumber-reports/
-```
+1. `mvn test` starts Surefire (3.5.2), which runs `TestRunner` (JUnit 4 + Cucumber).
+2. Cucumber loads features from `src/test/resources/features`, glue `stepdefinitions` + `hooks`; optional tag filter.
+3. Per scenario, `Hooks.@Before` calls `DriverManager.getDriver()`: reads config, runs `WebDriverManager.<browser>().setup()`, builds options (headless if set), applies implicit wait and page-load timeout, stores driver in `ThreadLocal`.
+4. Steps open `config base.url` via `LoginPage`, perform actions through page objects (explicit waits in `BasePage`), then assert (JUnit assertions) in the step class.
+5. `Hooks.@After`: on failure, best-effort screenshot attached to the scenario; `finally` always `quitDriver()` (fresh isolated session per scenario).
+6. Reporting: Cucumber `pretty/summary/html/json/junit` under `target/cucumber-reports`; Surefire reports under `target/surefire-reports`.
 
-Each scenario gets its own browser session (fresh `WebDriver` per `@Before`/`@After` pair), so scenarios are independent and order-agnostic — important for the negative/validation scenarios where leftover form state could mask a bug.
-
----
+Execution is sequential. Parallel (Cucumber/Surefire forks; `ThreadLocal` already makes this safe) and remote Selenium Grid are future work only.
 
 ## 5. Technology and Configuration Decisions
 
-### 5.1 Browser support
-`DriverManager.initDriver()` switches on `ConfigReader.getBrowser()` (`chrome` | `firefox` | `edge`, defaulting to `chrome`), using WebDriverManager to resolve driver binaries automatically for each. Chrome gets `--remote-allow-origins=*`, `--start-maximized`, `--disable-notifications` (plus `--headless=new` + fixed window size when headless); Firefox gets `-headless` when headless; Edge gets `--headless=new` when headless. All three currently-supported browsers are preserved as-is.
+| Decision | Choice | Justification |
+|---|---|---|
+| Language | Java (compiler level 11 in pom) | Existing; raising to 17/21 is optional future work |
+| Automation | Selenium 4.27.0 | Existing; built-in cross-browser support |
+| BDD | Cucumber 7.20.1 (`cucumber-java`, `cucumber-junit`) | Maps requirements/ACs to Gherkin scenarios |
+| Test runner | JUnit 4.13.2 | Required by `cucumber-junit`; no benefit in changing |
+| Driver binaries | WebDriverManager 5.9.2 | No manual driver management |
+| Build | Maven, Surefire 3.5.2 | Existing |
+| Logging | slf4j-simple 2.0.16 | Minimal |
+| Reporting | Cucumber HTML/JSON/JUnit XML + Surefire | No extra dependency |
 
-### 5.2 Thread-local driver vs. parallel execution
-`DriverManager` stores the `WebDriver` in a `ThreadLocal`, which makes it **safe** to run under parallel execution — but **[IMPLEMENTED]** only covers the safety mechanism. Parallel/remote execution itself is **not** configured: `pom.xml`'s Surefire plugin has no `<parallel>`/`<forkCount>` settings, and `TestRunner`'s `@CucumberOptions` has no parallel/JUnit-Platform configuration or `RemoteWebDriver`/Selenium Grid usage anywhere in `DriverManager`. Today's suite runs single-threaded, sequentially, locally. **[PROPOSED]** Enabling real parallelism would require moving to the Cucumber JUnit Platform engine (or Surefire fork/thread config) plus a CI/Grid-aware `RemoteWebDriver` path in `DriverManager`.
+**Configuration flow.** Implemented: `-Dkey=value` (non-empty) -> `config.properties` -> in-code default (`get(key, default)`); a missing required key throws. Environment variables are NOT read by the current `ConfigReader`. The guide wants a system property -> environment variable -> default order; this is recorded as a gap (A-1) with a small, recommended extension: resolve `key`, then env var `KEY.UPPER_WITH_UNDERSCORES` (e.g. `VALID_PASSWORD`), then file, then default. CI can alternatively map secrets to `-Dvalid.password`.
 
-### 5.3 Waits
-- Implicit wait: `driver.manage().timeouts().implicitlyWait(...)`, configured from `implicit.wait` (default 5s if key absent, but `config.properties` sets it explicitly to `5`).
-- Page load timeout: from `page.load.timeout` (default 30s; configured to `30`).
-- Explicit waits: `BasePage` builds one `WebDriverWait` per page object from `explicit.wait` (default 15s; configured to `15`) and exposes `waitForVisible`/`waitForAllVisible`/`waitForClickable`/`waitForUrlContains` helpers; `isDisplayed(locator, timeoutSeconds)` uses a short, call-site-specific timeout wrapped in try/catch to return `false` on timeout instead of throwing.
-- These two mechanisms coexist without conflicting: a small implicit wait acts as a safety floor for the driver overall, while all real assertions/synchronization go through `BasePage`'s explicit `WebDriverWait`s. No additional wait strategy is recommended — the existing split is sufficient and should not be duplicated with, e.g., `Thread.sleep`.
+Keys: `base.url`, `browser` (chrome|firefox|edge), `headless`, `implicit.wait` (5), `explicit.wait` (15), `page.load.timeout` (30), `valid.username`, `valid.password`.
 
-### 5.4 Configuration precedence (verified in `ConfigReader.java`)
-```java
-public String get(String key) {
-    String systemProperty = System.getProperty(key);
-    if (systemProperty != null && !systemProperty.trim().isEmpty()) {
-        return systemProperty.trim();     // -Dkey=value wins if non-empty
-    }
-    String value = properties.getProperty(key);   // else config.properties
-    if (value == null) throw new RuntimeException("Missing required configuration property: " + key);
-    return value.trim();
-}
-```
-- **Precedence:** a non-empty JVM system property (`-Dkey=value`) always overrides the value in `config.properties`. An empty/blank `-D` value is ignored (falls through to the file).
-- **No environment-variable support exists.** `ConfigReader` reads only `System.getProperty`, never `System.getenv`. The `README`/comments describing `-D` overrides are accurate; there is no `.env` or OS-environment-variable mechanism.
-- **Typed getters and their defaults:** `getBrowser()` → `"chrome"`; `isHeadless()` → `false`; `getImplicitWait()` → `5`; `getExplicitWait()` → `15`; `getPageLoadTimeout()` → `30`. These defaults only apply if the key is *also absent* from `config.properties` — today `config.properties` sets all five explicitly, so the getter defaults are a documented fallback, not the active values.
-- **No-default (required) getters:** `getBaseUrl()`, `getValidUsername()`, `getValidPassword()` call `get(key)` with no fallback and throw `RuntimeException` if the key is missing from both sources.
-- **Gap:** `pom.xml` defines a Maven property `<env>qa</env>` and passes it to Surefire as system property `env`, but no class under `src/test/java` reads `env` (`System.getProperty("env")` or a `ConfigReader.get("env", ...)` call was not found). This is dead configuration today — **[PROPOSED]** either wire it into environment-specific `base.url` resolution or remove it to avoid implying multi-environment support that doesn't exist.
+Waits: explicit `WebDriverWait` helpers in `BasePage`; no `Thread.sleep()`. A 5s implicit wait coexists with explicit waits (risk R-2).
 
-### 5.5 Credential handling and safety
-- `config.properties` exposes `valid.username` / `valid.password` as plaintext properties, read only via `ConfigReader.getValidUsername()`/`getValidPassword()`. These are used by the positive-path steps (`the user logs in with valid credentials`, `the user submits valid credentials`, and the mixed valid/invalid steps) so the "known-good" credential is centralized in one file rather than hardcoded in step code.
-- `login.feature` itself hardcodes literal credential values directly in Gherkin step text for several scenarios (`@TS_LOG_002`, `@TS_LOG_005`, `@TS_LOG_006`, `@TS_LOG_007` all pass an explicit username/password string in the step, rather than routing through `ConfigReader`). This means the same logical "valid password" value exists in two places (the properties file and the feature file), which is a **gap**: a future credential rotation must be applied in both, and the feature file is the less centralized of the two.
-- **Externalization gap:** `config.properties` is a checked-in, plaintext file under source control with the demo credential in it. This is acceptable for OrangeHRM's public opensource-demo instance but would not be acceptable for a real secured environment. **[PROPOSED]** externalize `valid.username`/`valid.password` to CI secrets injected as `-D` system properties at runtime (already supported by `ConfigReader`'s override mechanism, so no code change would be needed — only removing the plaintext defaults from the committed file and requiring the `-D` values at run time).
-- No credential value is reproduced in this document.
-
-### 5.6 Reporting
-`TestRunner`'s `@CucumberOptions.plugin` configures exactly: `pretty` (console), `summary` (console), `html:target/cucumber-reports/cucumber-html-report.html`, `json:target/cucumber-reports/cucumber.json`, `junit:target/cucumber-reports/cucumber-junit.xml`, with `monochrome = true`. No other report formats (e.g., Allure, ExtentReports) are configured or should be assumed.
-
-### 5.7 Failure screenshots
-`Hooks.tearDown` checks `scenario.isFailed()` and, only in that case, casts the driver to `TakesScreenshot`, captures `OutputType.BYTES`, and calls `scenario.attach(bytes, "image/png", <name>-failure)`. The screenshot is embedded into the Cucumber HTML/JSON report via the scenario attachment mechanism — it is **not** additionally written to a standalone file on disk.
-
----
-
-## 6. Error Handling, Credential Safety, Scalability Boundaries, Success Criteria
+## 6. Error Handling, Security, Scalability, Success Criteria
 
 **Error handling**
-- Missing/blank required config (`base.url`, `valid.username`, `valid.password`) fails fast with a `RuntimeException` from `ConfigReader.get()`, surfaced at first use (typically in `Hooks.setUp` → `LoginSteps`).
-- Element-not-found/timeout during a step surfaces as a Selenium `TimeoutException` (from `BasePage`'s `WebDriverWait`) or an `AssertionError` (from `LoginSteps`' JUnit assertions), both of which mark the scenario failed and trigger the screenshot-on-failure path in `Hooks`.
-- `isDisplayed(locator, timeoutSeconds)` deliberately swallows the wait exception and returns `false`, so "element absent" is a first-class outcome for negative/validation assertions rather than a thrown error.
+- Timeouts surface as Selenium `TimeoutException` from wait helpers (negative checks return booleans).
+- Failure screenshot is best-effort and never masks the original failure; driver is always quit in `finally`.
+- Missing config key fails fast with a descriptive message.
 
-**Credential safety:** see §5.5. Summary: centralized `ConfigReader`-mediated credentials for positive-path scenarios; some scenarios use literal Gherkin-level values; plaintext checked-in file is an externalization gap for anything beyond a public demo app.
+**Security**
+- Demo credentials `Admin/admin123` are public OrangeHRM demo values, currently in `config.properties` (accepted exception documented in that file). For any non-public target they must be removed from the file and supplied via `-D` overrides / env vars / CI secrets. Never log passwords.
+- NFR-5 (security) is unspecified in the PRD; tests only cover password masking (FR-2, `type=password`).
 
-**Scalability boundaries**
-- Single JVM, single browser session per scenario, sequential execution — verified, not parallel (§5.2).
-- Three local browsers only; no Selenium Grid/`RemoteWebDriver`/cloud-grid (BrowserStack/Sauce Labs) integration exists.
-- Suite scope is the login module only (`login.feature`); `DashboardPage`/`ResetPasswordPage` exist only as landing-page verifiers for login scenarios, not as entry points for broader HR-module test coverage.
-- **[PROPOSED]** boundaries to revisit if scope grows: CI parallel fork/thread configuration, a `RemoteWebDriver`/Grid branch in `DriverManager`, and splitting `config.properties` per environment (using the currently-unused `env` property, §5.4).
+**Scalability**
+- Today sequential; `ThreadLocal` driver and per-scenario isolation allow later parallel runs; Selenium Grid/remote driver is future work.
 
-**Success criteria** (mirrors requirements.md §9, restated architecturally):
-- `mvn test` runs all 10 scenarios in `login.feature` to completion, each in an isolated browser session, and exits non-zero if any scenario fails (`testFailureIgnore=false`).
-- Every scenario failure produces an attached screenshot and appears in all three report formats.
-- Switching `browser`/`headless`/wait values via `-D` system properties changes framework behavior without editing `config.properties` or code.
+**Success criteria**
+- All 10 scenarios in `login.feature` pass on Chrome, and on Firefox/Edge via `-Dbrowser=`.
+- No `Thread.sleep()`, no selectors in steps, no hardcoded secrets for non-demo targets.
+- Reports generated on every run; failures carry a screenshot.
 
----
+## 7. Traceability
 
-## 7. Traceability: Requirements → Implementation
+| Requirement | Architectural coverage | Existing implementation |
+|---|---|---|
+| FR-1 UI elements | `LoginPage` visibility checks | `areAllLoginControlsDisplayed()`, scenario "All required login controls are displayed" |
+| FR-2 Password masking | `LoginPage` exposes field type attr | `getPasswordFieldType()`, masking scenario |
+| FR-3 Successful login | `LoginPage.login` -> `DashboardPage`; creds from `ConfigReader` | "Successful login with valid Admin credentials" |
+| FR-4 Loading indicator | Short-lived element capture on submit | `submitAndCaptureLoadingIndicator()`, `isLoadingIndicatorDisplayed()` |
+| FR-5 Invalid credentials | Error banner accessors | 2 failure scenarios; `getErrorBannerText()` |
+| FR-6 Required username | Field-level message accessors | `isUsernameRequiredErrorDisplayed()`, validation scenarios |
+| FR-7 Required password | Same | `isPasswordRequiredErrorDisplayed()`, validation scenarios |
+| FR-8 Forgot password | `LoginPage.clickForgotPassword` -> `ResetPasswordPage` | forgot-password scenario |
+| NFR-1 Browser compat | `DriverManager` chrome/firefox/edge via `browser` | config switch |
+| NFR-2 JavaScript enabled | Browsers' default; no JS-disabled test | none (not tested) |
+| NFR-3 Availability | Precondition; failures show as timeouts | none |
+| NFR-4/5/6 Unspecified | Out of design scope | none |
 
-| Requirement | login.feature Scenario(s) | Implementing Step(s) / Page Object Method(s) | Status |
-|---|---|---|---|
-| FR-1 (core UI controls displayed) | `@TS_LOG_008` | `all_required_login_controls_should_be_displayed` → `LoginPage.areAllLoginControlsDisplayed()` | Covered |
-| FR-2 (password masking) | `@TS_LOG_007` | `the_password_field_should_mask_the_entered_characters` → `LoginPage.getPasswordFieldType()` | Covered |
-| FR-3 (valid login → dashboard redirect) | `@TS_LOG_001` | `the_user_should_be_redirected_to_the_dashboard_page` → `DashboardPage.isDashboardPageDisplayed()` / `getPageHeaderText()` | Covered |
-| FR-4 (loading indicator during auth) | `@TS_LOG_009` | `a_loading_indicator_should_be_displayed_during_authentication` → `LoginPage.isLoadingIndicatorDisplayed()` (3s window) | Covered — note: short 3s check window, inherently timing-sensitive |
-| FR-5 (invalid credentials rejected) | `@TS_LOG_002`, `@TS_LOG_003` | `the_user_should_remain_on_the_login_page` / `the_error_banner_should_be_displayed` → `LoginPage.isErrorBannerDisplayed()`/`getErrorBannerText()` | Covered |
-| FR-6 (empty username validation) | `@TS_LOG_004`, `@TS_LOG_005` | `LoginPage.isUsernameRequiredErrorDisplayed()`/`getUsernameRequiredErrorText()` | Covered |
-| FR-7 (empty password validation) | `@TS_LOG_004`, `@TS_LOG_006` | `LoginPage.isPasswordRequiredErrorDisplayed()`/`getPasswordRequiredErrorText()` | Covered |
-| FR-8 (forgot-password navigation) | `@TS_LOG_010` | `the_user_clicks_the_link` → `LoginPage.clickForgotPassword()`; `ResetPasswordPage.isResetPasswordPageDisplayed()` | Covered |
-| NFR-1 (compatibility: modern browser + JS) | — | Framework supports Chrome (`DriverManager`), which exercises real browser JS engines, but no scenario explicitly targets "JS enabled" or cross-browser-matrix execution | **Gap** — no dedicated test; browser choice is a run parameter, not multi-browser CI coverage |
-| NFR-2 (availability of server/DB) | — | No health-check/precondition step exists; a down server would simply fail scenario steps with a timeout | **Gap** — not architected as a distinct check |
-| NFR-3 (performance) | — | Not specified in requirements; no timing assertions in the framework | **Gap** — explicitly out of scope per requirements.md |
-| NFR-4 (security, beyond FR-2) | `@TS_LOG_007` covers password masking only | — | **Gap** — no lockout/rate-limit/session/encryption coverage; requirements.md notes none were specified |
-| NFR-5 (accessibility) | — | No accessibility assertions (e.g., ARIA, contrast, keyboard nav) anywhere in `pages/` or `stepdefinitions/` | **Gap** — not specified in requirements, not implemented |
+## 8. Assumptions and Risks
 
-**Extra automation beyond the PRD's own test-ID table:** `@TS_LOG_008`–`@TS_LOG_010` extend past the PRD's `TS_LOG_001`–`TS_LOG_007` range but map to PRD acceptance criteria (AC1.1, AC2.3, AC4.1) per requirements.md §8 — carried through unchanged here, no new gap introduced by the architecture.
+- A-1: Env-var resolution is not implemented in `ConfigReader` (see section 5); proposed for Stage 5 as a small change.
+- A-2: Java compiler target 11 is retained; no requirement needs 21.
+- A-3: Supported browsers are Chrome (default), Firefox, Edge (per requirements assumption on "modern browser").
+- R-1: Tests depend on a public, shared demo site (availability, data resets, rate limits) - flakiness is possible; retries are not added (YAGNI).
+- R-2: Mixing implicit and explicit waits can add unpredictable delay for negative checks; consider lowering implicit wait to 0 in a later stage.
+- R-3: The loading-indicator check (FR-4) is timing-sensitive as the spinner is brief.
+- R-4: The PRD lists only TS_LOG_001..007 while scenarios cover more behaviours; tags should be reconciled in review.
+- R-5: Confluence PRD was not re-read (see requirements Traceability), so the design reflects the earlier extract.
 
----
+## Addendum (Stage 5, implementation of impl-plan T-01..T-07)
 
-**Next Stage:** Design/Implementation review of the above against `docs/sdlc/impl-plan.md` (if scope changes) or straight to verification if no code changes are required this cycle.
+Records decisions made while resolving the design-review conditions. It does not replace the sections above.
+
+### A.1 DriverManager contract (M-1, S-1)
+- `quitDriver()` always removes the ThreadLocal in a `finally`; a `WebDriverException` from `quit()` is logged, not rethrown.
+- `initDriver()` quits the already-started browser (guarded) and rethrows if post-creation configuration (page-load timeout, maximize) fails, so no orphan browser remains and the ThreadLocal is set only on success.
+- Hooks never create drivers during teardown: `Hooks.tearDown` uses the non-creating `DriverManager.peekDriver()` (null-safe) and still calls `quitDriver()` in `finally`.
+
+### A.2 Wait strategy (M-2, FR-4)
+- Implicit wait is 0 (the `implicitlyWait` call and the `implicit.wait` key/getter were removed). Only explicit waits in `BasePage` are used; `pageLoadTimeout` (30s) and explicit wait (15s) remain configurable.
+- FR-4 (loading indicator) is best-effort: the locator is scoped to the login form/submit button and polled every 50 ms for up to 3 s starting immediately after the click. TS_LOG_009 is tagged `@timing` and can be excluded: `mvn test -Dcucumber.filter.tags="not @timing"`.
+
+### A.3 Configuration precedence (S-3, S-4)
+- Order: non-empty `-Dkey=value`, then environment variable (key upper-cased, `.` to `_`, e.g. `VALID_PASSWORD`), then `config.properties`, then code default.
+- `browser` default lives only in `config.properties` (pom default and pass-through removed). Maven forwards `-D` user properties to Surefire, so `mvn test -Dbrowser=edge` still overrides it.
+
+### A.4 Credential exception (design-review condition 3)
+- The plaintext demo credentials in `config.properties` are valid only while `base.url` host is `opensource-demo.orangehrmlive.com`. `ConfigReader.getValidPassword()` throws `IllegalStateException` if the host differs and no `-Dvalid.password`/`VALID_PASSWORD` override is supplied. Passwords are never logged.
+
+### A.5 Corrected traceability (S-2)
+| Requirement | Scenarios |
+|---|---|
+| FR-3 Successful login | TS_LOG_001 (click), TS_LOG_012 (Enter key); dashboard URL checked as `dashboard/index` |
+| FR-5 Invalid credentials | TS_LOG_002 (bad password), TS_LOG_003 (bad username), TS_LOG_011 (both invalid) |
+| FR-4 Loading indicator | TS_LOG_009 (`@timing`, best-effort) |
+| FR-1 UI elements | TS_LOG_008 covers logo, fields, button, forgot link. Accepted gap: input placeholders and footer are not asserted (low value, selector risk on the demo site) |
+
+The suite now has 12 scenarios (11 when `@timing` is excluded).
+
+### A.6 Headless and CI usage
+Run `mvn test -Dheadless=true` (optionally `-Dbrowser=chrome`) on machines without a display. Supply `VALID_PASSWORD`/`VALID_USERNAME` via CI secrets when targeting anything other than the public demo.
