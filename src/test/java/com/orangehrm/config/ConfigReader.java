@@ -4,10 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Properties;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Loads test configuration from src/test/resources/config.properties.
@@ -24,8 +20,6 @@ public final class ConfigReader {
     private static final String DEMO_HOST = "opensource-demo.orangehrmlive.com";
     private static final String HTTPS_SCHEME = "https";
     private static final String ALLOW_INSECURE_BASE_URL_KEY = "allow.insecure.base.url";
-    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigReader.class);
-    private static final AtomicBoolean INSECURE_BASE_URL_WARNING_LOGGED = new AtomicBoolean(false);
     private static volatile ConfigReader instance;
     private final Properties properties;
 
@@ -104,16 +98,11 @@ public final class ConfigReader {
      * the executed scheme assertion in LoginSteps necessarily runs only after
      * LoginPage.login() has already typed and POSTed the password, so it
      * cannot by itself stop a cleartext submission. Opt out only via
-     * allow.insecure.base.url for a local, non-TLS sandbox. When that opt-out
-     * is engaged, a one-time WARN (key name only, never the base.url value)
-     * is logged so the bypass is detectable after the fact (DR-017).
+     * allow.insecure.base.url for a local, non-TLS sandbox.
      */
     public String getBaseUrl() {
         String baseUrl = get("base.url");
         if (getBoolean(ALLOW_INSECURE_BASE_URL_KEY, false)) {
-            if (INSECURE_BASE_URL_WARNING_LOGGED.compareAndSet(false, true)) {
-                LOGGER.warn("{} is set; the https scheme guard on base.url is bypassed", ALLOW_INSECURE_BASE_URL_KEY);
-            }
             return baseUrl;
         }
         String scheme = resolveScheme(baseUrl);
