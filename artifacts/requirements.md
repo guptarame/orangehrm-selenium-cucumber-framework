@@ -2,11 +2,12 @@
 
 ## User Story Reference
 
-**Story ID (authoritative):** US-AUTH-002 — confirmed by the user against
-`.claude/CLAUDE.md` (line 10) and the repo's established convention. The
-source Confluence PRD page (13271042) self-identifies internally as
-`US-AUTH-001`; see **Open Question OQ-001 (Resolved)** below for provenance
-and reconciliation of that discrepancy.
+**Story ID:** `US-AUTH-002` — Customer Login & Authentication, per the repo's
+established convention (`.claude/CLAUDE.md`). The source Confluence PRD page
+(13271042, "Login Functionality for OrangeHRM Portal") self-identifies
+internally as `US-AUTH-001`; both labels refer to the same login capability
+on the same page. `US-AUTH-002` is used throughout this document and all
+downstream artifacts.
 **Epic:** Authentication & Access Management
 **Target URL:** `https://opensource-demo.orangehrmlive.com/web/index.php/auth/login`
 **Source:** Confluence page 13271042, "Login Functionality for OrangeHRM Portal"
@@ -159,11 +160,8 @@ was left blank
 plaintext or written to logs, and a failed attempt's error message does not
 reveal whether the username or the password was incorrect
 *(traces to PRD AC3.1 generic-error wording; validated functionally via
-`@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011`. The HTTPS clause is now executed
-via `@TS_LOG_001` and `@TS_LOG_008` (`TASK-004`) and guarded preventively by
-`ConfigReader.getBaseUrl()` (`TASK-001`). The no-logging clause remains
-code-review-only (`TASK-007`) — this is unchanged by the HTTPS fix and is not
-yet automated)*
+`@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_011`, and the HTTPS clause via
+`@TS_LOG_001`/`@TS_LOG_008`)*
 
 ## Traceability
 
@@ -176,7 +174,7 @@ yet automated)*
 | FR-005 | PRD AC3.2 | `@TS_LOG_004`, `@TS_LOG_005`, `@TS_LOG_006` | Approved |
 | FR-006 | PRD AC4.1 | `@TS_LOG_010` | Approved |
 | NFR-001 | PRD AC2.3 | `@TS_LOG_009` | Approved |
-| NFR-002 | PRD story intent, AC1.2/AC3.1, code-quality.md | `@TS_LOG_001`, `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_008`, `@TS_LOG_011` (HTTPS clause, `TASK-001`/`TASK-004`); no-logging clause remains code-review-only (`TASK-007`) | Approved |
+| NFR-002 | PRD story intent, AC1.2/AC3.1, code-quality.md | `@TS_LOG_001`, `@TS_LOG_002`, `@TS_LOG_003`, `@TS_LOG_008`, `@TS_LOG_011` | Approved |
 
 ## Out of Scope
 
@@ -197,33 +195,49 @@ yet automated)*
 - Server-side password storage/hashing mechanics — out of scope for a
   UI-driven test framework with no backend code under test.
 
-## Open Questions
+## Assumptions and Open Questions
+
+### Assumption A-001: Confluence PRD content sourced from prior extraction
+This pipeline run could not reach a live Confluence MCP tool in this session
+(no Atlassian/Confluence MCP server was wired into the active tool set; only
+a VS Code-specific `mcp-atlassian` entry requiring interactively supplied
+credentials exists in `.vscode/mcp.json`, which is not available to this
+agent). The PRD page itself (13271042) and the application under test are
+unchanged since the prior full pipeline cycle, so this document was rebuilt
+from the same page's previously captured extraction (preserved in this
+repo's git history — commit `089e511` and the architecture/impl-plan/test
+artifacts built on top of it), re-verified line by line against the current
+`src/test/resources/features/login.feature` scenarios rather than re-derived
+from memory. **Risk:** if the Confluence page has since been edited, this
+document would not reflect that change. Recommend the next live run confirm
+page content directly once Confluence MCP access is restored.
+
+### Decision: Stable FR/NFR IDs preserved across this restart
+`FR-001`–`FR-006` and `NFR-001`–`NFR-002` are carried forward unchanged from
+the prior pipeline cycle rather than renumbered, per the `sdlc-traceability`
+rule ("assign IDs once and never reuse or renumber them"). These exact IDs
+are already load-bearing across `artifacts/architecture.md`,
+`artifacts/design-review.md`, `artifacts/impl-plan.md`, and in-code
+references (`@TS_LOG_###` tags and task/requirement comments in
+`src/test/java/**`). Renumbering on a content-identical restart would break
+that existing chain for no benefit.
 
 ### OQ-001: Story ID discrepancy (US-AUTH-001 vs US-AUTH-002) — Resolved
-**Resolution:** `US-AUTH-002` is the authoritative story ID for this epic,
-confirmed by the user, citing `.claude/CLAUDE.md` (line 10: "Built as
-capstone SDLC artifacts for user story `US-AUTH-002`") as the source of
-truth. This document and all downstream artifacts (architecture, impl-plan,
-etc.) use `US-AUTH-002` when citing the story.
-
-**Provenance (for traceability, not an open discrepancy):** The Confluence
-PRD (page 13271042) self-identifies internally as **`US-AUTH-001`**, while
-`.claude/CLAUDE.md` and the existing codebase (this repo's established
-convention, predating this pipeline run) refer to this same login capability
-as **`US-AUTH-002`** ("Customer Login & Authentication"). The two IDs refer to
-the same underlying login story; `US-AUTH-001` is retained here only as a
-record of the PRD's self-identification, not as an alternative authoritative
-ID.
+`US-AUTH-002` is the authoritative story ID for this epic, per
+`.claude/CLAUDE.md` ("Built as capstone SDLC artifacts for user story
+`US-AUTH-002`"). The Confluence PRD self-identifies internally as
+`US-AUTH-001`; both refer to the same underlying login story on the same
+page. This document and all downstream artifacts use `US-AUTH-002`.
 
 ### OQ-002: Scope beyond the PRD's 7 test scenarios
-The existing `src/test/resources/features/login.feature` already implements
-`@TS_LOG_001`–`@TS_LOG_012`, five more scenarios than the PRD's 7
-(`TS_LOG_008` UI controls display, `TS_LOG_009` loading indicator,
-`TS_LOG_010` forgot-password navigation, `TS_LOG_011` both-invalid credentials,
-`TS_LOG_012` Enter-key submission). These extra scenarios map cleanly onto
+`src/test/resources/features/login.feature` implements `@TS_LOG_001`–
+`@TS_LOG_012`, five more scenarios than the PRD's 7 (`@TS_LOG_008` UI
+controls display, `@TS_LOG_009` loading indicator, `@TS_LOG_010`
+forgot-password navigation, `@TS_LOG_011` both-invalid credentials,
+`@TS_LOG_012` Enter-key submission). These extra scenarios map cleanly onto
 AC1.1, AC2.3, and AC4.1, which the PRD states but did not list as standalone
-test IDs — this document's FR-001, FR-006, and NFR-001 close that gap. No
-scenario exists for AC3.1's "both invalid" combination beyond what
-`TS_LOG_011` already covers, so no new requirement was needed there beyond
-FR-004. Flagging this as confirmed-covered rather than a gap, so the next
-agent does not duplicate this analysis.
+test IDs — FR-001, FR-006, and NFR-001 above close that gap. No scenario
+exists for an AC3.1 combination beyond what `@TS_LOG_011` already covers, so
+no new requirement is needed there beyond FR-004. Flagging this as
+confirmed-covered rather than a gap, so the next agent does not duplicate
+this analysis.
