@@ -22,6 +22,13 @@ import static org.junit.Assert.assertTrue;
  * every system property mutated here is captured before each test and
  * restored afterwards - a leaked base.url or allow.insecure.base.url would
  * otherwise silently retarget or weaken the scenarios that run after it.
+ * <p>
+ * The same sharing applies to ConfigReader's once-per-JVM insecure-opt-out
+ * warning latch (TASK-011): any test here that engages the opt-out flips that
+ * static flag, so it is reset after every test - otherwise an opt-out test
+ * running before the Cucumber scenarios would silently consume the one-time
+ * warning before a real getBaseUrl() call with the opt-out engaged ever gets
+ * a chance to log it.
  */
 public class ConfigReaderTest {
 
@@ -42,10 +49,11 @@ public class ConfigReaderTest {
     }
 
     @After
-    public void restoreOverrides() {
+    public void restoreOverrides() throws ReflectiveOperationException {
         restoreProperty(BASE_URL_KEY, originalBaseUrl);
         restoreProperty(ALLOW_INSECURE_KEY, originalAllowInsecure);
         restoreProperty(VALID_PASSWORD_KEY, originalValidPassword);
+        resetInsecureBaseUrlWarningLoggedFlag();
     }
 
     private static void restoreProperty(String key, String originalValue) {
@@ -116,7 +124,12 @@ public class ConfigReaderTest {
     // DR-017: the HTTPS scheme guard's opt-out path must leave a detectable trace.
     // The warning is logged once per JVM, so the "logged" flag is reset via reflection
     // before this test to make the assertion independent of execution order relative to
-    // the other opt-out tests above in this class.
+    // the other opt-out tests above in this class. The class-level @After also resets it
+    // after every test (including this one), so this test does not permanently consume
+    // the one-time latch for the rest of the JVM - Surefire's default single-reused-fork
+    // config runs this class and the Cucumber TestRunner in the same JVM, so an unreset
+    // latch here would silently suppress the real WARN for every actual getBaseUrl() call
+    // that follows in that run, defeating TASK-011's run-evidence visibility.
     @Test
     public void getBaseUrl_withInsecureOptOutEngaged_logsWarningNamingTheKeyOnly() throws ReflectiveOperationException {
         String httpUrl = "http://opensource-demo.orangehrmlive.com/web/index.php/auth/login";
