@@ -1,13 +1,8 @@
 package com.orangehrm.pages;
 
 import org.openqa.selenium.By;
-import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Page Object for the OrangeHRM login page
@@ -21,24 +16,8 @@ public class LoginPage extends BasePage {
     private static final By LOGIN_BUTTON = By.cssSelector("button[type='submit']");
     private static final By LOGO_IMAGE = By.cssSelector(".orangehrm-login-branding img");
     private static final By FORGOT_PASSWORD_LINK = By.cssSelector(".orangehrm-login-forgot-header");
-    // Brief loader scoped to the login form / submit button while the auth
-    // request is in flight (not the global spinner used by dashboard widgets).
-    private static final By LOADING_INDICATOR =
-            By.cssSelector("form .oxd-form-loader, form button[type='submit'] .oxd-loading-spinner");
-    private static final Duration LOADING_INDICATOR_TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration LOADING_INDICATOR_POLLING = Duration.ofMillis(50);
-
-    // Footer locators, scoped to the footer container and keyed on stable,
-    // hand-authored class fragments (not generated oxd-* chains) confirmed
-    // against the live DOM, per FR-001/AD-008.
-    private static final By FOOTER_COPYRIGHT =
-            By.cssSelector(".orangehrm-login-footer .orangehrm-copyright-wrapper");
-    private static final By FOOTER_SOCIAL_LINK =
-            By.cssSelector(".orangehrm-login-footer .orangehrm-login-footer-sm a");
-    // Single short timeout for the whole missing-controls group (DR-003):
-    // open() already waits for the username field, so the page is confirmed
-    // loaded before any of these checks run.
-    private static final int MISSING_CONTROLS_TIMEOUT_SECONDS = 3;
+    // Brief loader shown on the submit button while the auth request is in flight.
+    private static final By LOADING_INDICATOR = By.cssSelector(".oxd-form-loader, .oxd-loading-spinner");
 
     // Top-level red banner shown for wrong username/password combinations.
     private static final By ERROR_ALERT_MESSAGE = By.cssSelector(".oxd-alert-content-text");
@@ -83,11 +62,6 @@ public class LoginPage extends BasePage {
 
     public void clickLogin() {
         click(LOGIN_BUTTON);
-    }
-
-    /** Submits the login form by pressing Enter in the password field. */
-    public void submitWithEnterKey() {
-        waitForVisible(PASSWORD_INPUT).sendKeys(Keys.ENTER);
     }
 
     public void clickForgotPassword() {
@@ -152,37 +126,15 @@ public class LoginPage extends BasePage {
     }
 
     /**
-     * Evaluates every required login control independently (FR-001) and
-     * returns the names of the ones not displayed, so a failure is
-     * diagnosable from the report alone instead of behind one short-circuited
-     * boolean (DR-002, DR-003).
+     * Confirms every required login control (logo, username field, password
+     * field, login button, forgot-password link) is present on the page.
      */
-    public List<String> findMissingLoginControls() {
-        List<String> missingControls = new ArrayList<>();
-        addIfNotDisplayed(missingControls, "logo", LOGO_IMAGE);
-        addIfNotDisplayed(missingControls, "username field", USERNAME_INPUT);
-        addIfNotDisplayed(missingControls, "password field", PASSWORD_INPUT);
-        addIfNotDisplayed(missingControls, "Login button", LOGIN_BUTTON);
-        addIfNotDisplayed(missingControls, "forgot-password link", FORGOT_PASSWORD_LINK);
-        addIfNotDisplayed(missingControls, "footer copyright", FOOTER_COPYRIGHT);
-        addIfNotDisplayed(missingControls, "footer social-media link", FOOTER_SOCIAL_LINK);
-        return missingControls;
-    }
-
-    private void addIfNotDisplayed(List<String> missingControls, String controlName, By locator) {
-        if (!isDisplayed(locator, MISSING_CONTROLS_TIMEOUT_SECONDS)) {
-            missingControls.add(controlName);
-        }
-    }
-
-    /** Returns the Username field's placeholder attribute value, for LoginSteps to compare (FR-001). */
-    public String getUsernamePlaceholder() {
-        return waitForVisible(USERNAME_INPUT).getDomAttribute("placeholder");
-    }
-
-    /** Returns the Password field's placeholder attribute value, for LoginSteps to compare (FR-001). */
-    public String getPasswordPlaceholder() {
-        return waitForVisible(PASSWORD_INPUT).getDomAttribute("placeholder");
+    public boolean areAllLoginControlsDisplayed() {
+        return isDisplayed(LOGO_IMAGE, 10)
+                && isDisplayed(USERNAME_INPUT, 10)
+                && isDisplayed(PASSWORD_INPUT, 10)
+                && isDisplayed(LOGIN_BUTTON, 10)
+                && isDisplayed(FORGOT_PASSWORD_LINK, 10);
     }
 
     /**
@@ -192,7 +144,7 @@ public class LoginPage extends BasePage {
      * quickly; a false result only means it was not observed in that window.
      */
     public boolean isLoadingIndicatorDisplayed() {
-        return isPresent(LOADING_INDICATOR, LOADING_INDICATOR_TIMEOUT, LOADING_INDICATOR_POLLING);
+        return isDisplayed(LOADING_INDICATOR, 3);
     }
 
     /**

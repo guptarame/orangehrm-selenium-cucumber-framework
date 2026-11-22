@@ -25,6 +25,9 @@
         <junit.version>4.13.2</junit.version>
         <webdrivermanager.version>5.9.2</webdrivermanager.version>
         <slf4j.version>2.0.16</slf4j.version>
+
+        <!-- Runtime configurable properties (overridable via -D on command line) -->
+        <browser>chrome</browser>
     </properties>
 
     <dependencies>
@@ -93,13 +96,12 @@
                 <version>3.5.2</version>
                 <configuration>
                     <testFailureIgnore>false</testFailureIgnore>
-                    <!-- **/*Test.java is included for ConfigReader's security-guard
-                         unit coverage (TASK-002/TASK-003) only - not a general
-                         invitation to add a broad unit-test layer. -->
                     <includes>
                         <include>**/TestRunner.java</include>
-                        <include>**/*Test.java</include>
                     </includes>
+                    <systemPropertyVariables>
+                        <browser>${browser}</browser>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

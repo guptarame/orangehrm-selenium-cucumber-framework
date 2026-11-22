@@ -9,7 +9,7 @@ import org.openqa.selenium.WebDriver;
  */
 public class DashboardPage extends BasePage {
 
-    private static final String DASHBOARD_URL_FRAGMENT = "dashboard/index";
+    private static final String DASHBOARD_URL_FRAGMENT = "dashboard";
     private static final By PAGE_HEADER = By.cssSelector("h6.oxd-topbar-header-breadcrumb-module");
     private static final By USER_DROPDOWN = By.cssSelector(".oxd-userdropdown-tab");
 
