@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-11-22
+
+### Added
+
+#### Observability (DR-017, TASK-011, NFR-002)
+- SLF4J WARN logging in `ConfigReader.getBaseUrl()` when the `allow.insecure.base.url` opt-out is engaged — the warning names only the opt-out key (never the base.url value or any credential), is emitted exactly once per JVM via an `AtomicBoolean` latch, and is bounded by `AD-011`'s boundary-only logging policy (makes the HTTPS guard bypass detectable in run evidence, closes DR-017 Low design-review finding). Purely additive: no change to the opt-out's existing resolution logic or control flow.
+- Extended `ConfigReaderTest` with one new case: `getBaseUrl_withInsecureOptOutEngaged_logsWarningNamingTheKeyOnly()` verifying that the WARN is logged exactly once and contains no credential, with mandatory `@Before`/`@After` capture-and-restore of system properties per `AD-014` / `DR-016` unit-test layer contract.
+
+#### SDLC Pipeline Hardening (DR-015, TASK-010)
+- Fixed malformed YAML frontmatter in `.claude/rules/code-quality.md` — added closing `---` delimiter (line 5) after the `paths` list, ensuring proper syntax and reliable auto-loading on fresh tool sessions. The rule is the sole active control for `NFR-002`'s no-plaintext-in-logs clause (closes DR-015 Medium design-review finding).
+
+### Documentation
+
+- `artifacts/requirements.md`: Re-issued with no requirement changes (all 6 FR + 2 NFR carried forward); full re-verification against code and git history.
+- `artifacts/architecture.md`: Re-issued with 14 architecture decisions carried forward (AD-001–AD-014); prior-cycle findings DR-001–DR-012 verified in real code; new findings DR-013–DR-018 added (6 findings addressing SDLC pipeline integrity, unit-test layer risk, and opt-out observability; `DR-013`, `DR-014`, `DR-016`, `DR-017` load-bearing on this cycle; `DR-015` closes via TASK-010; `DR-018` minor doc correction).
+- `artifacts/design-review.md`: Re-issued with 18 findings; design-review gate: **PASS** (0 Critical, 0 High unresolved).
+- `artifacts/impl-plan.md`: Re-issued as a "re-confirmation" document: TASK-001–TASK-009 all marked Done with evidence re-verified against git and working tree; TASK-010, TASK-011, TASK-012 (Step 6 credential check), TASK-013 (this verification) newly scoped and completed for this cycle; two tasks (TASK-010, TASK-011) carried explicit human-approval blockers resolved per user gate.
+- `artifacts/verification-report.md`: New comprehensive verification report documenting full-suite execution, opt-out confirmation, guard integrity, and no credential leakage.
+
+### Test Results
+
+- Full suite: `mvn test -Dheadless=true`
+- Surefire: 19 tests total (7 `ConfigReaderTest` + 12 Cucumber scenarios), 18 passed, 1 pre-existing failure
+- Cucumber: 12 scenarios, 11 passed, 1 pre-existing failure (`@TS_LOG_009` NFR-001 timing limitation, not a regression)
+- Steps: 43 total, 42 passed, 1 failed (pre-existing), 0 undefined, 0 skipped
+- Coverage: All 6 FR + 2 NFR traced to passing tests or code-review checks
+- Credentials: Zero credentials logged or embedded in reports (confirmed via grep and manual inspection)
+- Opt-out confirmation: `allow.insecure.base.url` unset for this run (secure default active)
+
+### Known Limitations (updated)
+
+- **NFR-001 (loading indicator):** `@TS_LOG_009` fails due to pre-existing DOM-presence-proxy limitation (not a regression). Documented in `architecture.md` §Risks (DR-004) as an explicitly accepted trade-off.
+- **NFR-002 no-logging clause:** Code-review-only coverage (TASK-007/TASK-012). The `hook_scan_secrets` automation referenced in `.claude/CLAUDE.md` is not yet implemented; Step 6/Step 8 manual review is the sole active control per `DR-012`.
+- **Unit-test layer forward-looking risk (DR-016):** Any future `**/*Test.java` class mutating `base.url`, `allow.insecure.base.url`, or `valid.password` must honour the `@Before`/`@After` capture-and-restore pattern or risk leaking retargeted URLs into subsequent Cucumber scenarios. Pattern is documented as mandatory in `architecture.md` `AD-014` trade-off column; this cycle's `ConfigReaderTest` honours it.
+- **YAML frontmatter auto-load confidence:** The fix to `.claude/rules/code-quality.md` frontmatter (TASK-010) makes the rule syntactically correct, but tooling-dependent auto-loading is not strictly guaranteed. The rule content is load-bearing regardless, and the fix removes the accidental-vs.-designed ambiguity.
+
+---
+
+**Traceability:**
+
+| ID | Type | Link | Status |
+| --- | --- | --- | --- |
+| TASK-010 | Implementation Task | `.claude/rules/code-quality.md` frontmatter fix | Complete |
+| TASK-011 | Implementation Task | `ConfigReader` opt-out WARN + `ConfigReaderTest` case 7 | Complete |
+| TASK-012 | Code Review Task | Credential logging & guard integrity check | Complete |
+| TASK-013 | Verification Task | Full-suite run, opt-out confirmation | Complete |
+| DR-013..DR-018 | Design-Review Findings | `artifacts/design-review.md` | 6 new findings added this cycle; gate PASS |
+
 ## [1.0.0] — 2026-11-21
 
 ### Added
